@@ -1,0 +1,1 @@
+{% extends 'base.html' %}{% block content %}<a class="back" href="/">← Хөгжүүлэлтийн явц</a><h1>{{ title }}</h1><p>{{ subtitle }}</p><section class="panel padded"><form method="post" class="formgrid">{% csrf_token %}{{ form.as_p }}<div><button class="button">Хөгжүүлэлт үүсгэх</button></div></form></section>{% endblock %}
