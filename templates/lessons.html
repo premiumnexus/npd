@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="eyebrow">ХӨГЖҮҮЛЭЛТЭЭС АВСАН СУРГАМЖ</div>
+<h1>Сургамж</h1>
+<p>Gate 3-ийн сургамжийн картууд.</p>
+{% for item in lessons %}
+<article class="panel padded">
+  <div class="sectionhead">
+    <div><h2><a href="{% url 'detail' item.food.pk %}">{{ item.food.name }}</a></h2><small>FD-{{ item.food.pk|stringformat:'03d' }} · {{ item.food.get_stage_display }}</small></div>
+    <a class="secondary" href="{% url 'detail' item.food.pk %}">Хөгжүүлэлт харах →</a>
+  </div>
+  {% if item.root_cause %}<h3>Шалтгааны онош</h3><div>{{ item.root_cause|linebreaksbr }}</div>{% endif %}
+  {% if item.evidence %}<p>{{ item.evidence|linebreaksbr }}</p>{% endif %}
+  {% if item.lesson %}<h3>Үргэлжлүүлэх зүйл</h3><div>{{ item.lesson|linebreaksbr }}</div>{% endif %}
+  {% if item.stop %}<h3>Зогсоох зүйл</h3><div>{{ item.stop|linebreaksbr }}</div>{% endif %}
+  {% if item.change %}<h3>Өөрчлөх зүйл</h3><div>{{ item.change|linebreaksbr }}</div>{% endif %}
+  {% if item.tags %}<p>{% for tag in item.tags %}<span class="badge">{{ tag }}</span> {% endfor %}</p>{% endif %}
+</article>
+{% empty %}<section class="panel padded"><p>Сургамж бүртгэгдээгүй байна. Gate 3-ийн «Сургамжийн карт» талбарт мэдээлэл оруулж хадгална уу.</p></section>{% endfor %}
+{% endblock %}

@@ -1,0 +1,10 @@
+<section class="panel padded">
+  <h2>Gate 1 · Концепц ба жор</h2>
+  <form method="post">
+    {% csrf_token %}
+    {% include 'gate0_fields.html' with form=gate1form %}
+    {% if editable %}<button class="button" name="action" value="gate1_save">Хадгалах</button>{% endif %}
+  </form>
+  {% include 'gate0_file_slots.html' with gate0slots=gate1slots %}
+</section>
+{% include 'gate1_calculator.html' %}

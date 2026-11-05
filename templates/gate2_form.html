@@ -1,0 +1,11 @@
+{% load static %}
+<script src="{% static 'gate2.js' %}?v=1" defer></script>
+<section class="panel padded">
+  <h2>Gate 2 · Үйлдвэрлэл, нэвтрүүлэлтийн бэлэн байдал</h2>
+  <form method="post">
+    {% csrf_token %}
+    {% include 'gate0_fields.html' with form=gate2form %}
+    {% if editable %}<button class="button" name="action" value="gate2_save">Хадгалах</button>{% endif %}
+  </form>
+  {% include 'gate0_file_slots.html' with gate0slots=gate2slots %}
+</section>

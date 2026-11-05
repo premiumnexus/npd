@@ -50,3 +50,20 @@ class LineForm(MongolianModelForm):
     class Meta:
         model = RecipeLine
         fields = ['ingredient','quantity']
+
+class Gate1LineForm(MongolianModelForm):
+    class Meta:
+        model = RecipeLine
+        fields = ['ingredient','quantity','unit_price']
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.fields['unit_price'].required=False
+        self.fields['unit_price'].label='Орцын нэгжийн үнэ (₮)'
+        self.fields['quantity'].label='Нэг бүтээгдэхүүнд орох хэмжээ'
+        self.fields['quantity'].help_text='Орцын хэмжих нэгжээр оруулна. 100 грамм = 0.1 кг.'
+        self.fields['unit_price'].help_text='Хоосон үлдээвэл орцын санд бүртгэсэн үнийг авна.'
+    def clean(self):
+        data=super().clean()
+        if data.get('unit_price') is None and data.get('ingredient'):
+            data['unit_price']=data['ingredient'].price
+        return data

@@ -1,0 +1,21 @@
+<section class="panel padded">
+  <h2>Орц ба нэгжийн өртгийн тооцоо</h2>
+  <p>Нэг бүтээгдэхүүнд орох орцын хэмжээг оруулна. Жишээ: тахианы гуя ₮14,500/кг, нэг бүтээгдэхүүнд 100 грамм орвол 0.1 кг × ₮14,500 = ₮1,450. Өмнөх багцын хэмжээгээр оруулсан орцуудыг нэг бүтээгдэхүүний хэмжээнд тохируулна уу.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Орц / нийлүүлэгч</th><th>Нэг бүтээгдэхүүнд орох хэмжээ</th><th>Орцын нэгжийн үнэ (₮)</th><th>Нэг бүтээгдэхүүний орцын өртөг</th>{% if editable %}<th></th>{% endif %}</tr></thead>
+    <tbody>{% for line in food.lines.all %}<tr>
+      <td>{{ line.ingredient.name }}<small>{{ line.ingredient.supplier }} · {{ line.ingredient.get_unit_display }}</small></td>
+      {% if editable %}
+      <td><input form="recipe-line-{{ line.pk }}" name="quantity" type="number" min="0.001" step="0.001" value="{{ line.quantity|stringformat:'.3f' }}" aria-label="{{ line.ingredient.name }} — хэмжээ" required></td>
+      <td><input form="recipe-line-{{ line.pk }}" name="unit_price" type="number" min="0" step="0.01" value="{{ line.unit_price|stringformat:'.2f' }}" aria-label="{{ line.ingredient.name }} — үнэ" required></td>
+      {% else %}<td>{{ line.quantity }} {{ line.ingredient.get_unit_display }}</td><td>₮{{ line.unit_price|floatformat:2 }}</td>{% endif %}
+      <td>₮{{ line.cost|floatformat:2 }}</td>
+      {% if editable %}<td><form method="post" id="recipe-line-{{ line.pk }}">{% csrf_token %}<input type="hidden" name="line" value="{{ line.pk }}"><input type="hidden" name="ingredient" value="{{ line.ingredient_id }}"><button class="secondary" name="action" value="gate1_line_update">Хадгалах</button><button class="link" name="action" value="gate1_line_remove" formnovalidate>Хасах</button></form></td>{% endif %}
+    </tr>{% empty %}<tr><td colspan="5">Тооцоололд орц нэмээгүй байна.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if editable %}<form method="post" class="gate0-fields">{% csrf_token %}{{ ingredient_form.as_p }}<div><button class="secondary" name="action" value="gate1_line_add">Орц нэмэх</button></div></form>{% endif %}
+  <div class="costcard">
+    <div class="eyebrow">НЭГЖ БҮТЭЭГДЭХҮҮНИЙ ӨРТӨГ</div><div class="bigcost">₮{{ food.unit_cost|floatformat:2 }}</div>
+    <small>&#1053;&#1101;&#1075; &#1073;&#1199;&#1090;&#1101;&#1101;&#1075;&#1076;&#1101;&#1093;&#1199;&#1199;&#1085;&#1076; &#1086;&#1088;&#1086;&#1093; &#1086;&#1088;&#1094; &#1073;&#1199;&#1088;&#1080;&#1081;&#1085; &#1093;&#1101;&#1084;&#1078;&#1101;&#1101; &times; &#1086;&#1088;&#1094;&#1099;&#1085; &#1085;&#1101;&#1075;&#1078;&#1080;&#1081;&#1085; &#1199;&#1085;&#1101;. &#1041;&#1199;&#1093; &#1086;&#1088;&#1094;&#1099;&#1085; &#1257;&#1088;&#1090;&#1075;&#1080;&#1081;&#1075; &#1085;&#1101;&#1084;&#1078; &#1090;&#1086;&#1086;&#1094;&#1085;&#1086;.</small>
+  </div>
+</section>

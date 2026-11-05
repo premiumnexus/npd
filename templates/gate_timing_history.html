@@ -1,0 +1,7 @@
+<details class="panel padded">
+  <summary>Үе шатны шилжилтийн түүх</summary>
+  <div class="tablewrap gate-timing-history"><table>
+    <thead><tr><th>Үйлдэл</th><th>Үе шат</th><th>Хэрэглэгч</th><th>Огноо</th><th>Өмнөх алхамд зарцуулсан</th></tr></thead>
+    <tbody>{% for event in timing.events %}<tr><td>{{ event.get_action_display }}</td><td>{% if event.from_stage %}{{ event.get_from_stage_display }} → {% endif %}{{ event.get_to_stage_display }}</td><td>{{ event.actor|default:'—' }}</td><td>{{ event.occurred_at|date:'Y-m-d H:i' }}</td><td>{{ event.previous_elapsed|default:'—' }}</td></tr>{% empty %}<tr><td colspan="5">Шилжилтийн хугацаа бүртгэгдээгүй байна.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</details>
