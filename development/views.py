@@ -17,7 +17,7 @@ from .gate2 import Gate2Form, initial_brief as initial_gate2, save_brief as save
 from .gate3 import Gate3Form, initial_brief as initial_gate3, save_brief as save_gate3, FILE_SLOTS as GATE3_FILE_SLOTS, file_slots as gate3_file_slots, save_slot_file as save_gate3_file
 from .gate3_typed import ROOT_CAUSES,LESSON_TAGS
 from .timing import record_transition,gate_timing
-from .launch import schedule as launch_schedule,checkpoint_cards,can_edit_checkpoint,CheckpointForm,open_gate3_if_due,open_due_reviews
+from .launch import schedule as launch_schedule,checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,open_gate3_if_due,open_due_reviews
 
 def allowed(user, role):
     return user.is_superuser or user.groups.filter(name=role).exists()
@@ -108,7 +108,10 @@ def detail(request,pk):
                     for field in card['form'].fields.values(): field.disabled=True
             if checkpoint_error:
                 for card in cards:
-                    if card['day']==checkpoint_error['day']: card['form']=checkpoint_error['form']
+                    if card['day']==checkpoint_error['day']:
+                        card['form']=checkpoint_error['form']
+                        for upload in card['upload_fields']:
+                            upload['field']=card['form'][upload['field'].name]
             return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'launch_schedule':launch_schedule(food),'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'ingredient_unit_cost':food.unit_cost,**rights})
         if request.method == 'POST':
             action = request.POST.get('action')
@@ -134,19 +137,17 @@ def detail(request,pk):
                 try: day=int(request.POST.get('day',''))
                 except (ValueError,TypeError): return HttpResponseForbidden('Хяналтын өдөр тохирохгүй байна.')
                 if not can_edit_checkpoint(request.user,food,day): return HttpResponseForbidden('Хугацаа болоогүй эсвэл энэ хяналтыг засах эрхгүй байна.')
-                from .models import LaunchCheckpoint
-                instance=LaunchCheckpoint.objects.filter(food=food,day=day).first()
-                form=CheckpointForm(request.POST,day=day,instance=instance)
+                form=CheckpointForm(request.POST,request.FILES,day=day)
                 if not form.is_valid():
                     checkpoint_error={'day':day,'form':form}
                     return render_page(checkpoint_error)
-                checkpoint=form.save(commit=False)
-                checkpoint.food=food
-                checkpoint.day=day
-                checkpoint.actor=request.user
-                checkpoint.recorded_at=timezone.now()
-                checkpoint.save()
-                Activity.objects.create(food=food,actor=request.user,text='Day %s · Дээж ба борлуулалтын хяналтыг хадгалав.'%day)
+                for slot,key,label in checkpoint_slots(day):
+                    uploaded=form.cleaned_data.get(key)
+                    if uploaded:
+                        Activity.objects.create(food=food,actor=request.user,
+                            text='Launch GO / Day %s / %s' % (day,label),
+                            attachment=uploaded,attachment_name=uploaded.name[:255],
+                            attachment_stage='launch',attachment_slot=slot)
             elif not editable: return HttpResponseForbidden('Хөгжүүлэлт түгжигдсэн эсвэл өөр баг хариуцаж байна')
             elif action in ['gate1_line_add','gate1_line_update','gate1_line_remove']:
                 if food.stage != 'gate1': return HttpResponseForbidden('Тооцооллыг зөвхөн Gate 1-д засварлана.')

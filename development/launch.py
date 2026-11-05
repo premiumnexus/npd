@@ -1,8 +1,6 @@
 from datetime import timedelta
-from decimal import Decimal,InvalidOperation
 from django import forms
 from django.utils import timezone
-from .models import LaunchCheckpoint
 
 def schedule(food,now=None):
     now=now or timezone.now()
@@ -23,43 +21,45 @@ def can_edit_checkpoint(user,food,day,now=None):
     roles=[SCIENCE,PLANNING]+([QA] if day==14 else [])
     return user.groups.filter(name__in=roles).exists() and GateAccessQuery(user,'launch','can_edit')
 
-class CheckpointForm(forms.ModelForm):
-    class Meta:
-        model=LaunchCheckpoint
-        fields=['sample_weight','sample_texture','sample_taste','sample_notes','sales_snapshot','sales_notes','within_tolerance','complaints_count','complaints_details']
-        widgets={key:forms.Textarea(attrs={'rows':2}) for key in ['sample_texture','sample_taste','sample_notes','sales_notes','complaints_details']}
+CHECKPOINT_FIELDS = [
+    ('sample_weight', 'Дээжийн жин'),
+    ('sample_texture', 'Дээжийн бүтэц'),
+    ('sample_taste', 'Дээжийн амт'),
+    ('sample_notes', 'Дээжийн тэмдэглэл'),
+    ('sales_snapshot', 'Борлуулалтын үзүүлэлт'),
+    ('sales_notes', 'Борлуулалтын тойм'),
+    ('within_tolerance', 'Gate 2 (2.10) шалгууртай харьцуулсан дүгнэлт'),
+    ('complaints_count', 'Гомдлын тоо'),
+    ('complaints_details', 'Гомдлын мэдээлэл'),
+]
+
+def checkpoint_slots(day):
+    return [('L%sF%s' % (day,index), key, label)
+            for index,(key,label) in enumerate(CHECKPOINT_FIELDS,1)
+            if day==14 or not key.startswith('complaints_')]
+
+class CheckpointForm(forms.Form):
     def __init__(self,*args,day,**kwargs):
         kwargs.setdefault('auto_id','id_day%s_%%s'%day)
         super().__init__(*args,**kwargs)
         self.day=day
-        if day==7:
-            self.fields.pop('complaints_count')
-            self.fields.pop('complaints_details')
-        for field in self.fields.values(): field.required=False
+        for slot,key,label in checkpoint_slots(day):
+            self.fields[key]=forms.FileField(label=label,required=False)
 
 def checkpoint_cards(user,food,now=None):
     from .gate2 import initial_brief
-    saved={item.day:item for item in food.launch_checkpoints.all()}
     dates=schedule(food,now)
     baseline=initial_brief(food)
+    uploads=list(food.activities.filter(attachment_stage='launch').exclude(attachment=''))
     cards=[]
-    def decimal(value):
-        try:
-            result=Decimal(str(value))
-            return result if result.is_finite() else None
-        except (InvalidOperation,ValueError,TypeError): return None
     for day in [7,14]:
         editable=can_edit_checkpoint(user,food,day,now)
-        form=CheckpointForm(day=day,instance=saved.get(day))
+        form=CheckpointForm(day=day)
         for field in form.fields.values(): field.disabled=not editable
-        sample=saved.get(day)
-        weight=sample.sample_weight if sample else None
-        target=decimal(baseline.get('quality_tolerance_baseline'))
-        low,high=decimal(baseline.get('quality_weight_min')),decimal(baseline.get('quality_weight_max'))
-        weight_result=None
-        if weight is not None and (low is not None or high is not None):
-            weight_result=(low is None or weight>=low) and (high is None or weight<=high)
-        cards.append({'day':day,'editable':editable,'due':dates['day%s_at'%day],'unlocked':dates['day%s_open'%day],'form':form,'baseline':baseline,'weight_difference':weight-target if weight is not None and target is not None else None,'weight_result':weight_result})
+        fields=[{'field':form[key], 'files':[item for item in uploads if item.attachment_slot==slot]}
+                for slot,key,label in checkpoint_slots(day)]
+        cards.append({'day':day,'editable':editable,'due':dates['day%s_at'%day],
+                      'unlocked':dates['day%s_open'%day],'form':form,'upload_fields':fields,'baseline':baseline})
     return cards
 
 def open_gate3_if_due(food,now=None):

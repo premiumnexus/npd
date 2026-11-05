@@ -179,7 +179,7 @@ class Activity(models.Model):
     attachment = models.FileField(upload_to=activity_upload_path,blank=True)
     attachment_name = models.CharField(max_length=255,blank=True)
     attachment_stage = models.CharField(max_length=20,choices=STAGES,blank=True)
-    attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,10)]+['G2-F%s' % number for number in range(1,12)]+['G3-F%s' % number for number in range(1,4)]])
+    attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,10)]+['G2-F%s' % number for number in range(1,12)]+['G3-F%s' % number for number in range(1,4)]+['L%sF%s' % (day,number) for day in [7,14] for number in range(1,8 if day==7 else 10)]])
     created = models.DateTimeField(auto_now_add=True)
     class Meta: ordering = ['-created']
 

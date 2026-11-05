@@ -24,6 +24,35 @@ def valid_gate0():
     }
 
 class DevelopmentTests(TestCase):
+    def test_launch_file_uploads_keep_history_downloads_and_time_locks(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import Activity
+        self.food.stage='launch';self.food.launched_at=timezone.now()-timedelta(days=8);self.food.save()
+        self.user.groups.add(Group.objects.get(name='Food Science'))
+        url='/food/%s/'%self.food.pk
+        with tempfile.TemporaryDirectory() as media, self.settings(MEDIA_ROOT=media):
+            def upload(day=7,content=b'first report'):
+                return self.client.post(url,{'action':'checkpoint_save','day':day,
+                    'sample_weight':SimpleUploadedFile('weight.pdf',content,content_type='application/pdf')})
+            self.assertEqual(upload(14).status_code,403)
+            self.assertFalse(Activity.objects.filter(food=self.food,attachment_stage='launch').exists())
+            self.assertEqual(upload().status_code,302)
+            self.assertEqual(upload(content=b'revised report').status_code,302)
+            files=Activity.objects.filter(food=self.food,attachment_slot='L7F1')
+            self.assertEqual(files.count(),2)
+            response=self.client.get(url)
+            self.assertContains(response,'enctype="multipart/form-data"')
+            self.assertEqual(len(response.context['checkpoint_cards'][0]['upload_fields'][0]['files']),2)
+            item=files.first()
+            from django.urls import reverse
+            download=self.client.get(reverse('download_attachment',args=[item.pk]))
+            self.assertEqual(download.status_code,200)
+            self.assertEqual(b''.join(download.streaming_content),b'revised report')
+            self.food.launched_at=timezone.now()-timedelta(days=14);self.food.save()
+            self.assertEqual(upload(14).status_code,302)
+            self.assertTrue(Activity.objects.filter(food=self.food,attachment_slot='L14F1').exists())
+
     def test_day45_after_late_launch_reentry_keeps_chronological_timing(self):
         from datetime import timedelta
         from django.utils import timezone
@@ -58,9 +87,9 @@ class DevelopmentTests(TestCase):
         with patch('django.utils.timezone.now',return_value=start+timedelta(days=14)):
             self.client.force_login(self.user)
             self.assertEqual(self.client.post(url,{**payload,'day':'14','complaints_count':'2','complaints_details':'Packaging concerns'}).status_code,302)
-        checkpoint=self.food.launch_checkpoints.get(day=14)
-        self.assertEqual(checkpoint.sales_snapshot,Decimal('12.5'))
-        self.assertEqual(checkpoint.complaints_count,2)
+        self.assertFalse(self.food.launch_checkpoints.exists())
+        from .launch import CheckpointForm
+        self.assertTrue(all(field.__class__.__name__=='FileField' for field in CheckpointForm(day=14).fields.values()))
 
     def test_launch_checkpoint_role_ownership_and_superuser_time_lock(self):
         from datetime import timedelta
@@ -233,7 +262,11 @@ class DevelopmentTests(TestCase):
         self.user.groups.add(Group.objects.get(name='FF Planning'))
         for day,value in [(7,'yes'),(14,'no')]:
             self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':day,'within_tolerance':value}).status_code,302)
-        self.assertEqual(self.food.launch_checkpoints.count(),2)
+        # Previously recorded typed results remain available, but new uploads
+        # cannot write or overwrite these legacy assessments.
+        from .models import LaunchCheckpoint
+        for day,value in [(7,'yes'),(14,'no')]:
+            LaunchCheckpoint.objects.create(food=self.food,day=day,within_tolerance=value)
         form=Gate3Form({'shelf_samples_day7_day14':'no','day14_sample_within_tolerance':'yes'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['shelf_samples_day7_day14'],'yes')
