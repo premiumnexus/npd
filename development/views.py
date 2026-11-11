@@ -10,13 +10,14 @@ from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from .models import Food, Supplier, Ingredient, RecipeLine, Activity, STAGES
 from .workflow import context as gate_context, transition, GateAccessQuery, CATEGORY, PURCHASING
-from .forms import SupplierForm, IngredientForm, Gate1LineForm
+from .forms import SupplierForm, IngredientForm, Gate1LineForm, Gate1PackagingForm
 from .gate0 import Gate0Form, initial_brief, save_brief, FILE_SLOTS, file_slots, save_slot_file
 from .gate1 import Gate1Form, initial_brief as initial_gate1, save_brief as save_gate1, FILE_SLOTS as GATE1_FILE_SLOTS, file_slots as gate1_file_slots, save_slot_file as save_gate1_file
 from .gate2 import Gate2Form, initial_brief as initial_gate2, save_brief as save_gate2, FILE_SLOTS as GATE2_FILE_SLOTS, file_slots as gate2_file_slots, save_slot_file as save_gate2_file
 from .gate3 import Gate3Form, initial_brief as initial_gate3, save_brief as save_gate3, FILE_SLOTS as GATE3_FILE_SLOTS, file_slots as gate3_file_slots, save_slot_file as save_gate3_file
 from .gate3_typed import ROOT_CAUSES,LESSON_TAGS
 from .timing import record_transition,gate_timing
+from .role_progress import role_progress
 from .launch import schedule as launch_schedule,checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,open_gate3_if_due,open_due_reviews
 
 def allowed(user, role):
@@ -92,6 +93,7 @@ def detail(request,pk):
             rights={key:False for key in rights}
         editable = rights['editable']
         ingredient_form = Gate1LineForm()
+        packaging_form = Gate1PackagingForm(instance=food)
         gate0form = Gate0Form(initial=initial_brief(food),food=food)
         gate1form = Gate1Form(initial=initial_gate1(food),food=food)
         gate2form = Gate2Form(initial=initial_gate2(food),food=food)
@@ -112,7 +114,7 @@ def detail(request,pk):
                         card['form']=checkpoint_error['form']
                         for upload in card['upload_fields']:
                             upload['field']=card['form'][upload['field'].name]
-            return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'launch_schedule':launch_schedule(food),'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'ingredient_unit_cost':food.unit_cost,**rights})
+            return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'role_progress':role_progress(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'launch_schedule':launch_schedule(food),'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'packaging_form':packaging_form,'ingredient_unit_cost':food.unit_cost,**rights})
         if request.method == 'POST':
             action = request.POST.get('action')
             if action == 'slot_upload':
@@ -149,6 +151,14 @@ def detail(request,pk):
                             attachment=uploaded,attachment_name=uploaded.name[:255],
                             attachment_stage='launch',attachment_slot=slot)
             elif not editable: return HttpResponseForbidden('Хөгжүүлэлт түгжигдсэн эсвэл өөр баг хариуцаж байна')
+            elif action == 'gate1_packaging_save':
+                if food.stage != 'gate1': return HttpResponseForbidden('Gate 1 only')
+                packaging_form=Gate1PackagingForm(request.POST,instance=food)
+                if not packaging_form.is_valid(): return render_page()
+                packaging_form.save()
+                food.recipe_version=(food.recipe_version or 0)+1
+                food.save(update_fields=['recipe_version','updated'])
+                Activity.objects.create(food=food,actor=request.user,text='Gate 1 / Packaging cost updated')
             elif action in ['gate1_line_add','gate1_line_update','gate1_line_remove']:
                 if food.stage != 'gate1': return HttpResponseForbidden('Тооцооллыг зөвхөн Gate 1-д засварлана.')
                 if action == 'gate1_line_remove':

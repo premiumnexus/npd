@@ -100,7 +100,10 @@ def transition(user,food,action,note):
         description = 'Захирлын шийдвэрт шилжүүлэв'
     elif action == 'approve':
         if not rights['can_decide']: return 'Шийдвэр гаргах эрхгүй эсвэл хяналтын дараалал тохирохгүй байна.'
-        if food.review_status == 'manager' and food.stage in ['gate2','gate3']:
+        from .gate1_typed import cost_comparison
+        from .gate1 import initial_brief as gate1_data
+        red_gate1=food.stage=='gate1' and cost_comparison(food,gate1_data(food).get('typed_cogs'))['cogs_status']=='Red'
+        if food.review_status == 'manager' and (food.stage in ['gate2','gate3'] or red_gate1):
             food.review_status = 'director'
             description = 'Менежер зөвшөөрсөн, захирлын шийдвэр хүлээж байна'
         else:

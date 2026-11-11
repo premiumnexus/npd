@@ -24,6 +24,180 @@ def valid_gate0():
     }
 
 class DevelopmentTests(TestCase):
+    def test_role_progress_follows_gate_reviews_and_configured_groups(self):
+        from .role_progress import role_progress
+        from .models import GateAccess
+        self.food.stage='gate0';self.food.review_status='draft'
+        rows=role_progress(self.food)
+        self.assertIn('Category Manager (MD)',rows[0]['roles'])
+        self.assertEqual([row['key'] for row in rows],['draft','manager','director'])
+        self.assertEqual(rows[0]['state'],'current')
+        self.assertTrue(rows[2]['conditional'])
+        self.food.stage='gate2';self.food.review_status='qa'
+        rows=role_progress(self.food)
+        self.assertEqual([row['key'] for row in rows],['draft','qa','manager','director'])
+        self.assertEqual([row['state'] for row in rows],['done','current','upcoming','upcoming'])
+        self.assertIn('QA',rows[1]['roles'])
+        self.food.review_status='director'
+        self.assertEqual(role_progress(self.food)[-1]['state'],'current')
+        self.food.completed=True
+        self.assertTrue(all(row['state']=='done' for row in role_progress(self.food)))
+        self.food.completed=False;self.food.review_status='draft'
+        custom=Group.objects.create(name='Custom Gate 2 submitter')
+        GateAccess.objects.filter(stage='gate2').update(can_submit=False)
+        GateAccess.objects.create(stage='gate2',group=custom,can_submit=True)
+        self.assertEqual(role_progress(self.food)[0]['roles'],[custom.name])
+
+    def test_role_progress_launch_and_position_above_gate_navigation(self):
+        from .role_progress import role_progress
+        from django.utils import timezone
+        from datetime import timedelta
+        self.food.stage='launch';self.food.launched_at=timezone.now()-timedelta(days=8);self.food.save()
+        rows=role_progress(self.food)
+        self.assertFalse(rows[0]['locked']);self.assertTrue(rows[1]['locked'])
+        self.assertIn('Food Science',rows[0]['roles'])
+        self.assertIn('QA',rows[1]['roles'])
+        self.food.launched_at=timezone.now()-timedelta(days=15)
+        self.assertEqual(role_progress(self.food)[1]['state'],'current')
+        response=self.client.get('/food/%s/?gate=gate0'%self.food.pk)
+        self.assertEqual(response.status_code,200)
+        html=response.content.decode()
+        self.assertLess(html.index('steps role-progress'),html.index('aria-label="Gate navigation"'))
+        self.assertIn('Food Science',response.context['role_progress'][0]['roles'])
+
+    def test_gate2_real_vendor_price_example_and_saved_calculations(self):
+        from .gate0 import save_brief
+        from .gate2 import Gate2Form,initial_brief
+        from decimal import ROUND_HALF_UP
+        save_brief(self.food,{'target_shelf_price':9000,'cu_margin':30,'vendor_rebate':2,'vendor_margin':15})
+        self.food.lines.all().delete()
+        self.food.stage='gate2';self.food.packaging=350;self.food.save()
+        for grams,yield_factor,price in [(200,'1',4000),(120,'.7',16000),(60,'.85',5000),(30,'1',8000)]:
+            RecipeLine.objects.create(food=self.food,ingredient=self.ingredient,quantity=Decimal(grams)/1000,yield_factor=Decimal(yield_factor),unit_price=price)
+        payload={'vendor_invoice_price':'5800','typed_cogs':'1','final_cogs_invoice_price':'1','front_margin_percent':'99','margin_gap_points':'99','implied_vendor_margin_percent':'99'}
+        form=Gate2Form(payload,food=self.food)
+        self.assertTrue(form.is_valid(),form.errors)
+        for key,expected in [('front_margin_percent','29.1'),('margin_gap_points','0.9'),('implied_vendor_margin_percent','21.1')]:
+            self.assertEqual(form.cleaned_data[key].quantize(Decimal('.1'),rounding=ROUND_HALF_UP),Decimal(expected))
+            self.assertEqual(form.initial[key],expected)
+            self.assertTrue(form.fields[key].disabled)
+        self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],self.food.unit_cost)
+        self.assertNotIn('typed_cogs',form.fields)
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        response=self.client.post('/food/%s/'%self.food.pk,dict(payload,action='gate2_save'))
+        self.assertEqual(response.status_code,302)
+        saved=initial_brief(self.food)
+        self.assertEqual(Decimal(saved['front_margin_percent']),form.cleaned_data['front_margin_percent'])
+        self.assertEqual(Decimal(saved['final_cogs_invoice_price']),self.food.unit_cost)
+
+    def test_gate2_real_vendor_price_missing_zero_and_margin_floor(self):
+        from .gate0 import save_brief
+        from .gate2 import Gate2Form
+        save_brief(self.food,{'target_shelf_price':1100,'cu_margin':30,'vendor_rebate':0,'vendor_margin':15})
+        for invoice in ['600','700']:
+            form=Gate2Form({'vendor_invoice_price':invoice},food=self.food)
+            self.assertTrue(form.is_valid(),form.errors)
+            self.assertEqual(form.cleaned_data['margin_gap_points'],0)
+        form=Gate2Form({'vendor_invoice_price':'0'},food=self.food)
+        self.assertTrue(form.is_valid(),form.errors)
+        self.assertEqual(form.cleaned_data['front_margin_percent'],100)
+        self.assertIsNone(form.cleaned_data['implied_vendor_margin_percent'])
+        form=Gate2Form({},food=self.food)
+        self.assertTrue(form.is_valid())
+        self.assertIsNone(form.cleaned_data['front_margin_percent'])
+        self.assertIsNone(form.cleaned_data['margin_gap_points'])
+        form=Gate2Form({'vendor_invoice_price':'-1'},food=self.food)
+        self.assertFalse(form.is_valid())
+        save_brief(self.food,{})
+        form=Gate2Form({'vendor_invoice_price':'5800'},food=self.food)
+        self.assertTrue(form.is_valid())
+        self.assertIsNone(form.cleaned_data['front_margin_percent'])
+        self.assertIsNone(form.cleaned_data['implied_vendor_margin_percent'])
+
+    def test_gate1_official_recipe_example_and_red_approval_route(self):
+        from .models import Gate0Brief
+        from .gate1_typed import cost_comparison
+        from .workflow import transition
+        import json
+        from decimal import ROUND_HALF_UP
+        self.food.lines.all().delete()
+        self.food.stage='gate1';self.food.packaging=350;self.food.save()
+        Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':str(Decimal(9000)/Decimal('1.1')*Decimal('.7')*Decimal('.98')*Decimal('.85'))}))
+        for grams,yield_factor,price,expected in [(200,'1',4000,800),(120,'.7',16000,2743),(60,'.85',5000,353),(30,'1',8000,240)]:
+            line=RecipeLine.objects.create(food=self.food,ingredient=self.ingredient,quantity=Decimal(grams)/1000,yield_factor=Decimal(yield_factor),unit_price=price)
+            self.assertEqual(line.cost.quantize(Decimal(1),rounding=ROUND_HALF_UP),expected)
+        self.assertEqual(self.food.unit_cost.quantize(Decimal(1),rounding=ROUND_HALF_UP),4486)
+        comparison=cost_comparison(self.food,'99999')
+        self.assertEqual(comparison['cogs_status'],'Green')
+        self.assertEqual(comparison['cogs_gap_percent'].quantize(Decimal('.1')),Decimal('-6.0'))
+        self.assertEqual(comparison['send_to_director'],'No')
+        self.food.packaging=1200;self.food.review_status='manager';self.food.save()
+        self.assertEqual(cost_comparison(self.food,None)['cogs_status'],'Red')
+        self.user.groups.add(Group.objects.get(name='Fresh Food Manager'))
+        self.assertIsNone(transition(self.user,self.food,'approve',''))
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.stage,'gate1');self.assertEqual(self.food.review_status,'director')
+
+    def test_gate1_grams_yield_packaging_validation_and_boundaries(self):
+        from .forms import Gate1LineForm
+        from .gate1_typed import cost_comparison
+        from .models import Gate0Brief
+        import json
+        for value in ['0','.009','1.01','-1']:
+            form=Gate1LineForm({'ingredient':self.ingredient.pk,'net_grams':'120','yield_factor':value})
+            self.assertFalse(form.is_valid(),value)
+        form=Gate1LineForm({'ingredient':self.ingredient.pk,'net_grams':'120','yield_factor':'.7','unit_price':'16000'})
+        self.assertTrue(form.is_valid(),form.errors)
+        line=form.save(commit=False);line.food=self.food;line.save()
+        self.assertEqual(line.quantity,Decimal('.12'))
+        self.assertEqual(line.cost,Decimal('.12')/Decimal('.7')*16000)
+        self.food.lines.all().delete()
+        Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':'1000'}))
+        for amount,status in [('1000','Green'),('1000.01','Amber'),('1050','Amber'),('1050.01','Red')]:
+            self.assertEqual(cost_comparison(self.food,amount)['cogs_status'],status)
+        self.food.stage='gate1';self.food.save()
+        url='/food/%s/'%self.food.pk
+        self.assertEqual(self.client.post(url,{'action':'gate1_packaging_save','packaging':'350'}).status_code,403)
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        self.assertEqual(self.client.post(url,{'action':'gate1_packaging_save','packaging':'350'}).status_code,302)
+        self.food.refresh_from_db();self.assertEqual(self.food.packaging,350)
+        self.assertEqual(self.client.post(url,{'action':'gate1_packaging_save','packaging':'-1'}).status_code,200)
+
+    def test_gate0_target_costing_example_precision_and_tampering(self):
+        from .gate0 import Gate0Form,save_brief,initial_brief
+        from decimal import ROUND_HALF_UP
+        data={'target_shelf_price':'9000','cu_margin':'30','vendor_rebate':'2','vendor_margin':'15',
+              'price_excl_vat':'1','max_invoice_price':'1','cogs_limit':'1','cu_total_margin':'1','vat_percent':'99'}
+        form=Gate0Form(data)
+        self.assertTrue(form.is_valid(),form.errors)
+        expected={'price_excl_vat':'8182','max_invoice_price':'5727','cogs_limit':'4771','cu_total_margin':'31.4'}
+        for key,value in expected.items():
+            places=Decimal('0.1') if key=='cu_total_margin' else Decimal('1')
+            self.assertEqual(form.cleaned_data[key].quantize(places,rounding=ROUND_HALF_UP),Decimal(value))
+            self.assertTrue(form.fields[key].disabled)
+        save_brief(self.food,form.cleaned_data)
+        saved=initial_brief(self.food)
+        self.assertEqual(Decimal(saved['vat_percent']),Decimal('10'))
+        exact=Decimal('9000')/Decimal('1.1')*Decimal('.7')*Decimal('.98')*Decimal('.85')
+        self.assertEqual(Decimal(saved['cogs_limit']),exact)
+        self.assertEqual(Gate0Form(initial=saved).initial['cogs_limit'],'4771')
+
+    def test_gate0_target_costing_optional_zero_and_admin_vat(self):
+        from .gate0 import Gate0Form
+        from .models import TargetCostingSettings
+        form=Gate0Form({})
+        self.assertTrue(form.is_valid(),form.errors)
+        self.assertIsNone(form.cleaned_data['cogs_limit'])
+        TargetCostingSettings.objects.all().update(vat_percent=20)
+        form=Gate0Form({'target_shelf_price':'1200','cu_margin':'0','vendor_rebate':'0','vendor_margin':'0'})
+        self.assertTrue(form.is_valid(),form.errors)
+        self.assertEqual(form.cleaned_data['cogs_limit'],Decimal('1000'))
+        self.assertEqual(form.cleaned_data['cu_total_margin'],0)
+        partial=Gate0Form({'cu_margin':'30','vendor_rebate':'2'})
+        self.assertTrue(partial.is_valid(),partial.errors)
+        self.assertEqual(partial.cleaned_data['cu_total_margin'],Decimal('31.4'))
+        self.assertIsNone(partial.cleaned_data['price_excl_vat'])
+
     def test_launch_file_uploads_keep_history_downloads_and_time_locks(self):
         from datetime import timedelta
         from django.utils import timezone
@@ -319,11 +493,11 @@ class DevelopmentTests(TestCase):
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['final_recipe_version'],4)
         self.assertEqual(form.cleaned_data['launch_delay_days'],10)
-        self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],1500)
-        self.assertIn('8.5',form.cleaned_data['front_margin_percent'])
+        self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],20100)
+        self.assertIsNone(form.cleaned_data['front_margin_percent'])
         form=Gate2Form({'typed_cogs':'1700','launch_date':'2027-03-30'},food=self.food)
         self.assertTrue(form.is_valid())
-        self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],1700)
+        self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],20100)
         self.assertEqual(form.cleaned_data['launch_delay_days'],-2)
 
     def test_gate2_same_day45_targets_copied_from_gate0_or_changed_optionally(self):
@@ -366,9 +540,10 @@ class DevelopmentTests(TestCase):
         Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':'20000'}))
         form=Gate1Form({},food=self.food)
         self.assertTrue(form.is_valid())
-        self.assertEqual(form.cleaned_data['estimated_cogs_vs_limit'],20000)
-        self.assertEqual(form.cleaned_data['cogs_status'],'Хүлээгдэж байна')
-        COGSComparisonPolicy.objects.create(green_max_percent=100,amber_max_percent=110)
+        self.assertEqual(form.cleaned_data['estimated_cogs_vs_limit'],20100)
+        self.assertEqual(form.cleaned_data['cogs_status'],'Amber')
+        COGSComparisonPolicy.objects.create(amber_band_percent=10)
+        self.food.lines.all().delete()
         for amount,status in [('20000','Green'),('21000','Amber'),('23000','Red')]:
             form=Gate1Form({'typed_cogs':amount,'cogs_status':'Green','estimated_cogs_vs_limit':'1'},food=self.food)
             self.assertTrue(form.is_valid(),form.errors)
@@ -564,16 +739,16 @@ class DevelopmentTests(TestCase):
         url='/food/%s/' % self.food.pk
         self.client.post(url,{'action':'gate1_line_add','ingredient':self.ingredient.pk,'quantity':'0.1','unit_price':'14500'})
         self.food.refresh_from_db()
-        self.assertEqual(self.food.unit_cost,Decimal('1450'))
+        self.assertEqual(self.food.unit_cost,Decimal('1550'))
         line=self.food.lines.get()
         self.client.post(url,{'action':'gate1_line_update','line':line.pk,'ingredient':self.ingredient.pk,'quantity':'0.2','unit_price':'14500'})
-        self.assertEqual(self.food.unit_cost,Decimal('2900'))
+        self.assertEqual(self.food.unit_cost,Decimal('3000'))
         self.client.post(url,{'action':'gate1_line_add','ingredient':self.ingredient.pk,'quantity':'0.05'})
-        self.assertEqual(self.food.unit_cost,Decimal('3000'))
+        self.assertEqual(self.food.unit_cost,Decimal('3100'))
         self.food.batch_units=999; self.food.yield_percent=1; self.food.packaging=999; self.food.labor=999; self.food.overhead=999; self.food.save()
-        self.assertEqual(self.food.unit_cost,Decimal('3000'))
+        self.assertEqual(self.food.unit_cost,Decimal('3999'))
         response=self.client.get('/api/foods/%s/cost/' % self.food.pk)
-        self.assertEqual(response.json()['unit_cost'],'3000.00')
+        self.assertEqual(response.json()['unit_cost'],'3999.00')
         self.assertNotIn('batch_units',response.json())
 
     def test_gate1_calculator_validation_and_permissions(self):
@@ -586,7 +761,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(response.status_code,200)
         self.assertTrue(response.context['ingredient_form'].errors)
         self.assertEqual(self.food.lines.count(),1)
-        for name in ['batch_units','yield_percent','packaging','labor','overhead']:
+        for name in ['batch_units','yield_percent','labor','overhead']:
             self.assertNotContains(response,'name="%s"' % name)
         self.assertEqual(self.client.post(url,{'action':'gate1_cost_save'}).status_code,403)
         self.food.review_status='manager'; self.food.save()
@@ -695,7 +870,7 @@ class DevelopmentTests(TestCase):
         self.assertContains(response,'id_launch_date')
         self.assertEqual(self.client.post(url,payload).status_code,302)
         self.assertEqual(initial_brief(self.food)['launch_date'],'2027-05-15')
-        self.assertEqual(initial_brief(self.food)['final_cogs_invoice_price'],'1200')
+        self.assertEqual(Decimal(initial_brief(self.food)['final_cogs_invoice_price']),Decimal('20100'))
         self.assertEqual(self.food.activities.count(),1)
         self.client.post(url,{'action':'submit'})
         self.assertEqual(self.client.post(url,payload).status_code,403)
@@ -743,7 +918,7 @@ class DevelopmentTests(TestCase):
         response=self.client.get(url)
         self.assertContains(response,'id_marketing_brief')
         self.assertEqual(self.client.post(url,payload).status_code,302)
-        self.assertEqual(initial_brief(self.food)['estimated_cogs_vs_limit'],'1200')
+        self.assertEqual(Decimal(initial_brief(self.food)['estimated_cogs_vs_limit']),Decimal('20100'))
         self.assertEqual(initial_brief(self.food)['consumer_test'],50)
         self.assertEqual(self.food.activities.count(),1)
         self.food.review_status='manager'; self.food.save()
@@ -795,7 +970,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(self.client.post('/food/%s/' % self.food.pk,payload).status_code,302)
         self.food.refresh_from_db()
         self.assertEqual(initial_brief(self.food)['vendor_rebate'],'5')
-        self.assertEqual(initial_brief(self.food)['cogs_limit'],'')
+        self.assertIsNone(initial_brief(self.food)['cogs_limit'])
         self.assertEqual(self.food.name,'Typed draft')
         self.assertEqual(self.food.lines.count(),1)
 
@@ -966,12 +1141,12 @@ class DevelopmentTests(TestCase):
         self.client.force_login(self.user)
     def test_yield_and_cost(self):
         self.assertEqual(self.food.effective_units,80)
-        self.assertEqual(self.food.unit_cost,Decimal(20000))
-        self.assertEqual(self.food.margin,Decimal('-1900'))
+        self.assertEqual(self.food.unit_cost,Decimal(20100))
+        self.assertEqual(self.food.margin,Decimal('-1910'))
     def test_price_snapshot(self):
         self.ingredient.price=9999
         self.ingredient.save()
-        self.assertEqual(self.food.unit_cost,20000)
+        self.assertEqual(self.food.unit_cost,20100)
     def test_role_gate_and_handoff(self):
         url='/food/%s/' % self.food.pk
         self.client.post(url,{'action':'submit'})

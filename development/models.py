@@ -13,6 +13,14 @@ STAGES = [('gate0','Gate 0 · Санаа ба танилцуулга'),('gate1',
 from .workflow import SUBMITTERS
 ROLES = SUBMITTERS
 
+class TargetCostingSettings(models.Model):
+    vat_percent = models.DecimalField('НӨАТ (%)', max_digits=5, decimal_places=2,
+        default=Decimal('10.0'), validators=[MinValueValidator(0), MaxValueValidator(100)])
+    class Meta:
+        verbose_name = 'Gate 0 тооцооны тохиргоо'
+        verbose_name_plural = 'Gate 0 тооцооны тохиргоо'
+    def __str__(self): return 'VAT: %s%%' % self.vat_percent
+
 class GateAccess(models.Model):
     group = models.ForeignKey('auth.Group',on_delete=models.CASCADE)
     stage = models.CharField('Үе шат',max_length=20,choices=STAGES)
@@ -63,6 +71,7 @@ class PackagingType(models.Model):
     def __str__(self): return self.name
 
 class COGSComparisonPolicy(models.Model):
+    amber_band_percent=models.DecimalField('Amber зөрүүний босго (%)',max_digits=6,decimal_places=2,default=5,validators=NONNEGATIVE)
     id=models.PositiveSmallIntegerField(primary_key=True,default=1,editable=False)
     green_max_percent=models.DecimalField('Green дээд босго (COGS / хязгаар × 100)',max_digits=8,decimal_places=2,null=True,blank=True,validators=NONNEGATIVE)
     amber_max_percent=models.DecimalField('Amber дээд босго (COGS / хязгаар × 100)',max_digits=8,decimal_places=2,null=True,blank=True,validators=NONNEGATIVE)
@@ -102,7 +111,7 @@ class Food(models.Model):
     @property
     def effective_units(self): return Decimal(self.batch_units)*self.yield_percent/100
     @property
-    def unit_cost(self): return self.ingredient_cost
+    def unit_cost(self): return self.ingredient_cost+self.packaging
     @property
     def margin(self): return (self.selling_price-self.unit_cost)/self.selling_price*100 if self.selling_price else 0
     @property
@@ -165,12 +174,15 @@ class LaunchCheckpoint(models.Model):
     def __str__(self): return '%s / Day %s'%(self.food,self.day)
 
 class RecipeLine(models.Model):
+    yield_factor=models.DecimalField('Орцын гарц (0.01–1.00)',max_digits=5,decimal_places=4,default=1,validators=[MinValueValidator(Decimal('0.01')),MaxValueValidator(1)])
     food = models.ForeignKey(Food,on_delete=models.CASCADE,related_name='lines')
     ingredient = models.ForeignKey(Ingredient,on_delete=models.PROTECT)
     quantity = models.DecimalField(max_digits=12,decimal_places=3,validators=POSITIVE)
     unit_price = models.DecimalField(max_digits=14,decimal_places=2,validators=NONNEGATIVE)
     @property
-    def cost(self): return self.quantity*self.unit_price
+    def cost(self): return self.quantity/self.yield_factor*self.unit_price
+    @property
+    def net_grams(self): return self.quantity*1000
 
 class Activity(models.Model):
     food = models.ForeignKey(Food,on_delete=models.CASCADE,related_name='activities')

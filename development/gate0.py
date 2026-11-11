@@ -55,6 +55,8 @@ def save_brief(food,data):
     from .models import Gate0Brief
     previous=initial_brief(food)
     payload=dict(data)
+    from .target_costing import calculate
+    payload.update(calculate(data))
     payload['_schema_version']=2
     if previous.get('_schema_version') != 2:
         payload['_legacy_free_text']=previous

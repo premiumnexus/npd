@@ -52,8 +52,25 @@ class Gate0Form(forms.Form):
         add('producer','Үйлдвэрлэгч','0.11',enum([('central_foods','Central Foods')]+[('supplier:%s' % item.pk,item.name) for item in Supplier.objects.all()],required))
         add('vendor_margin','Нийлүүлэгчийн ашгийн хувь','0.12',number(60,2,required))
         self.fields['vendor_margin'].help_text+=' Rebate-ийн дараах цэвэр орлогоос. Хөдөлмөр, эрчим хүч, нэмэгдэл зардал, ашгийг багтаана.'
-        add('cogs_limit','COGS-ийн дээд хязгаар (тооцоолол)','0.13',forms.CharField(required=False,disabled=True,help_text='8-р хэсгийн томьёо хүлээгдэж байна.'))
-        self.initial['cogs_limit']=''
+        from .target_costing import calculate, vat_rate
+        self.vat_percent=vat_rate()
+        calculated=calculate(self.data if self.is_bound else self.initial,self.vat_percent)
+        specs=[
+            ('vat_percent','VAT / НӨАТ (%)','VAT','Удирдлагын тохиргоо',2),
+            ('price_excl_vat','НӨАТ-гүй үнэ (₮)','C01','Зорилтот тавиурын үнэ (НӨАТ-тай, ₮) / (1 + VAT / НӨАТ (%) / 100)',0),
+            ('max_invoice_price','Нийлүүлэгчийн нэхэмжлэхийн дээд үнэ (₮)','C02','НӨАТ-гүй үнэ (₮) × (1 − CU-ийн ашгийн хувь / 100)',0),
+            ('cogs_limit','COGS-ийн дээд хязгаар (₮)','0.13','Нийлүүлэгчийн нэхэмжлэхийн дээд үнэ (₮) × (1 − Rebate (буцаан олголт) % / 100) × (1 − Нийлүүлэгчийн ашгийн хувь / 100)',0),
+            ('cu_total_margin','Rebate орсон CU нийт ашгийн хувь (%)','C04','(1 − (1 − CU-ийн ашгийн хувь / 100) × (1 − Rebate (буцаан олголт) % / 100)) × 100',1),
+        ]
+        from decimal import ROUND_HALF_UP
+        for key,label,identifier,formula,places in specs:
+            add(key,label,identifier,forms.CharField(required=False,disabled=True,help_text=formula))
+            if key != 'vat_percent': self.fields[key].help_text=formula
+            value=calculated[key]
+            self.initial[key]=format(value.quantize(Decimal('1').scaleb(-places),rounding=ROUND_HALF_UP),'f') if value is not None else ''
+            self.fields[key].widget.attrs.update({'class':'costing-setting' if key=='vat_percent' else 'costing-result','data-costing-output':key})
+        for key in ['target_shelf_price','cu_margin','vendor_rebate','vendor_margin']:
+            self.fields[key].widget.attrs['class']='costing-input'
         add('analog_skus_sales_target','Жишиг SKU (3 хүртэл мөр, заавал биш)','0.14',RowsField(AnalogRow,minimum=0,maximum=3,complete=False,required=False))
         add('target_units_store_day','Зорилтот ширхэг / дэлгүүр / өдөр','0.14',number(None,2,required))
         add('store_scope','Дэлгүүрийн хамрах хүрээ','0.15',enum([('all','Бүх дэлгүүр'),('cluster','Кластер'),('pilot','Туршилт')],required))
@@ -99,6 +116,8 @@ class Gate0Form(forms.Form):
             from .gate0 import initial_brief
             if data.get('product_type') != initial_brief(self.food).get('product_type'):
                 self.add_error('product_type','Gate 0 илгээсний дараа төрлийг өөрчлөх боломжгүй.')
+        from .target_costing import calculate
+        data.update(calculate(data,self.vat_percent))
         return data
 
     @property

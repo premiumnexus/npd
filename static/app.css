@@ -42,3 +42,43 @@
 .repeat-rows{min-width:0}.repeat-row{padding:16px;border:1px solid var(--line);border-radius:6px;margin-bottom:12px}.repeat-row p{margin-bottom:12px}.repeat-row input[type=checkbox],.gate0-field input[type=checkbox]{width:auto;margin-right:8px}.gate0-field [hidden]{display:none}.gate0-field:has(.repeat-rows){grid-column:1 / -1}.gate0-field small{line-height:1.6}.gate0-field label{min-height:0}.repeat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.gate0-field[hidden]{display:none}
 
 .steps .gate-entered{margin-top:12px;font-size:10px;font-weight:500;color:#80718b}.steps a small{line-height:1.5}.gate-timing-card{margin:20px 0;padding:16px;background:#faf7fc;border:1px solid var(--line);border-radius:8px}.gate-timing-card h3{font-size:13px;margin:0 0 14px}.gate-timing-card strong{display:block;font-size:12px;margin:6px 0 14px;line-height:1.6}.gate-timing-card p{font-size:12px;margin:6px 0}.gate-timing-card small{line-height:1.6}.gate-timing-history{margin-top:20px}
+
+input.costing-input { background: #fff2cc; color: #192d40; }
+input.costing-result:disabled { background: #e2f0d9; color: #192d40; opacity: 1; font-weight: 700; }
+input.costing-setting:disabled { background: #fff2cc; color: #192d40; opacity: 1; }
+td.costing-result { background: #e2f0d9; color: #192d40; font-weight: 700; }
+.role-progress-caption { margin: 0 0 8px; font-size: 12px; color: var(--purple); }
+.steps.role-progress { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); margin-bottom: 18px; }
+.role-progress a { position: relative; border-right: 1px solid var(--line); }
+.role-progress a:last-child { border-right: 0; }
+.role-progress strong { display: block; font-size: 12px; line-height: 1.5; margin: 5px 0; overflow-wrap: anywhere; }
+.steps.role-progress a.done { box-shadow: inset 0 3px 0 var(--green); }
+.steps.role-progress a.current { box-shadow: inset 0 3px 0 var(--purple); }
+.role-progress a:not(:last-child)::after { content: '→'; position: absolute; right: 8px; top: 14px; color: var(--purple); }
+@media(max-width:700px) { .steps.role-progress { display:flex; overflow-x:auto; } .steps.role-progress a { min-width:220px; } }
+
+/* Shared theme applies to every page, including sign-in. */
+:root{color-scheme:light}
+.theme-toggle{gap:6px;padding:8px 10px;font-size:11px}
+.theme-toggle:focus-visible{outline:2px solid var(--purple);outline-offset:3px}
+.theme-toggle[aria-pressed=true]{background:#342645;border-color:#9471b9;color:#eadcf9}
+html[data-theme=dark]{color-scheme:dark;--purple:#c09ae8;--ink:#eee8f5;--muted:#b2a8bf;--line:#393140;--green:#88c9a5}
+html[data-theme=dark] body{background:#17141d}
+html[data-theme=dark] :is(aside,header,.panel,.stats article,.steps){background:#211c29}
+html[data-theme=dark] :is(input,select,textarea,.secondary){background:#292331;color:var(--ink);border-color:#51445e}
+html[data-theme=dark] :is(.button){background:#79509f;color:#fff}
+html[data-theme=dark] :is(nav a,p,label,dt,.activity p,.stats article>span,th,.steps a,.steps div,.steps .gate-entered,footer){color:var(--muted)}
+html[data-theme=dark] :is(nav a:hover,nav a.active,.steps .current,.steps a:hover,.stage-card:hover,.stage-card.selected,.gate-status,.gate-timing-card,.costcard){background:#30243e;color:var(--ink);border-color:#584268}
+html[data-theme=dark] :is(th){background:#28222f}
+html[data-theme=dark] :is(.avatar,.count,.badge){background:#3b2b4d;color:#d4b6f1}
+html[data-theme=dark] :is(.pill,.badge.approved,.badge.launch,.stats i){background:#233c30;color:#a0d6b3}
+html[data-theme=dark] .badge.sourcing{background:#29334f;color:#b1c3f2}
+html[data-theme=dark] :is(.badge.quality,.badge.costing,.badge.gate2,.badge.gate3,.notice){background:#44351e;color:#f0cf93;border-color:#75603c}
+html[data-theme=dark] .foodicon{background:#423024;color:#e7b58c}
+html[data-theme=dark] .amber{color:#e2b16d}
+html[data-theme=dark] .errorlist{color:#ff9ca5}
+html[data-theme=dark] :is(input.costing-input,input.costing-setting:disabled){background:#493e22;color:#ffe7a9}
+html[data-theme=dark] :is(input.costing-result:disabled,td.costing-result){background:#253e30;color:#c7ebd1}
+html[data-theme=dark] .costcard hr{border-color:var(--line)}
+html[data-theme=dark] .login-signature{mix-blend-mode:screen}
+@media(max-width:700px){.header-right .theme-toggle{font-size:10px}}

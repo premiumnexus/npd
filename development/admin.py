@@ -1,6 +1,11 @@
 from django.contrib import admin
 from .models import Food, Supplier, Ingredient, RecipeLine, Activity, GateAccess, Gate0Brief, Gate1Brief, Gate2Brief, Gate3Brief, Gate0Option, PackagingType, COGSComparisonPolicy, LaunchCheckpoint, GateTransition
 from .forms import LABELS
+from .models import TargetCostingSettings
+@admin.register(TargetCostingSettings)
+class TargetCostingSettingsAdmin(admin.ModelAdmin):
+    def has_add_permission(self,request):
+        return not TargetCostingSettings.objects.exists() and super().has_add_permission(request)
 for model,singular,plural in [
     (Food,'Бүтээгдэхүүн','Бүтээгдэхүүнүүд'),
     (Supplier,'Нийлүүлэгч','Нийлүүлэгчид'),
@@ -32,6 +37,7 @@ class GateTransitionAdmin(admin.ModelAdmin):
     def has_delete_permission(self,request,obj=None): return False
 @admin.register(COGSComparisonPolicy)
 class COGSComparisonPolicyAdmin(admin.ModelAdmin):
+    fields=['amber_band_percent']
     def has_add_permission(self,request):
         return not COGSComparisonPolicy.objects.exists() and super().has_add_permission(request)
 @admin.register(Gate0Option)

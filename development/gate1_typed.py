@@ -18,13 +18,19 @@ def cost_comparison(food,typed_cogs):
             return result if result.is_finite() else None
         except (ValueError,TypeError,InvalidOperation): return None
     typed=decimal(typed_cogs)
-    cogs=typed if typed is not None else (food.unit_cost if food and food.lines.exists() else None)
+    cogs=food.unit_cost if food and food.lines.exists() else (typed if typed is not None else (food.packaging if food and food.packaging else None))
     limit=decimal(initial_brief(food).get('cogs_limit')) if food else None
     policy=COGSComparisonPolicy.objects.first()
     result={'estimated_cogs_vs_limit':cogs,'cogs_limit':limit,'cogs_status':'Хүлээгдэж байна','cogs_source':'Гараар оруулсан' if typed is not None else ('Орцын тооцоо' if cogs is not None else '')}
-    if cogs is None or limit is None or limit<=0 or not policy or policy.green_max_percent is None or policy.amber_max_percent is None or policy.green_max_percent>policy.amber_max_percent: return result
-    ratio=cogs/limit*100
-    result['cogs_status']='Green' if ratio<=policy.green_max_percent else ('Amber' if ratio<=policy.amber_max_percent else 'Red')
+    band=policy.amber_band_percent if policy else Decimal('5')
+    if food and food.lines.exists(): result['cogs_source']='Орцын тооцоо + савлагаа'
+    result.update({'cogs_gap_percent':None,'amber_band':band,'send_to_director':''})
+    if cogs is None or limit is None or limit<=0: return result
+    gap=(cogs/limit-1)*100
+    result['cogs_gap_percent']=gap
+    result['cogs_status']='Green' if gap<=0 else ('Amber' if gap<=band else 'Red')
+    result['send_to_director']='Yes' if result['cogs_status']=='Red' else 'No'
+
     return result
 
 class Gate1Form(forms.Form):
@@ -51,9 +57,13 @@ class Gate1Form(forms.Form):
         add('consumer_liking','Таалагдсан үнэлгээ (1–9)','1.2',num(1,9))
         add('consumer_would_buy_percent','Зорилтот үнээр худалдан авах хувь (%)','1.2',num(0,100))
         add('typed_cogs','COGS гараар оруулах (₮, заавал биш)','1.3',num())
-        for key,label in [('estimated_cogs_vs_limit','Тооцоолсон COGS (₮)'),('cogs_limit','Gate 0 COGS хязгаар (₮)'),('cogs_status','COGS төлөв'),('cogs_source','COGS эх үүсвэр')]:
+        if food and food.lines.exists():
+            self.fields['typed_cogs'].disabled=True
+            self.fields['typed_cogs'].help_text='Жорын орц бүртгэлтэй тул COGS-ийг орц ба савлагаанаас тооцно.'
+        for key,label in [('estimated_cogs_vs_limit','Тооцоолсон COGS (₮)'),('cogs_limit','Gate 0 COGS хязгаар (₮)'),('cogs_status','COGS төлөв'),('cogs_gap_percent','COGS зөрүү (%)'),('amber_band','Amber босго (%)'),('send_to_director','Merchandising Director руу шилжүүлэх эсэх'),('cogs_source','COGS эх үүсвэр')]:
             add(key,label,'1.3',forms.CharField(disabled=True))
-        self.fields['cogs_status'].help_text+=' Хязгаар эсвэл Green/Amber босго байхгүй бол хүлээгдэж байна гэж харуулна.'
+            self.fields[key].widget.attrs['class']='costing-result'
+        self.fields['cogs_status'].help_text+=' Green: зөрүү ≤ 0%; Amber: босго хүртэл (анхдагч 5%); Red: босгоос их.'
         add('cogs_reason','Amber / Red шалтгаан','1.3',text())
         add('cogs_action','Amber / Red үед авах арга хэмжээ','1.3',text())
         add('raw_material_spec_price_moq_second_source','Шинэ эсвэл өөрчлөгдсөн түүхий эд','1.4',RowsField(MaterialRow,required=False,complete=False))
