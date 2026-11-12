@@ -35,6 +35,22 @@ class GateAccess(models.Model):
         verbose_name_plural = 'Үе шатны эрхүүд'
     def __str__(self): return '%s / %s' % (self.group,self.get_stage_display())
 
+class SharedDropdownOption(models.Model):
+    stage = models.CharField(max_length=20)
+    field = models.CharField(max_length=120)
+    scope = models.CharField(max_length=80, blank=True)
+    label = models.CharField(max_length=200)
+    label_key = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ['pk']
+        constraints = [models.UniqueConstraint(
+            fields=['stage', 'field', 'scope', 'label_key'], name='unique_shared_dropdown_option')]
+
+    def __str__(self):
+        return self.label
+
+
 class Supplier(models.Model):
     name = models.CharField(max_length=160,unique=True)
     contact = models.CharField(max_length=200,blank=True)

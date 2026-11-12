@@ -59,6 +59,7 @@ class Gate3Form(forms.Form):
         def add(key,label,number,field):
             field.required=False
             field.label=label
+            field.gate_number=number
             field.help_text=number+' · '+str(field.help_text or '')
             self.fields[key]=field
         def text(): return forms.CharField(widget=forms.Textarea(attrs={'rows':2}))
@@ -75,12 +76,12 @@ class Gate3Form(forms.Form):
         add('sales_target','Gate 0 (0.14) борлуулалтын зорилт','3.2',readonly())
         add('sales_difference','Борлуулалтын зөрүү (бодит − зорилт)','3.2',readonly())
         add('sales_attainment_percent','Борлуулалтын зорилтын биелэлт (%)','3.2',readonly())
-        add('margin_after_writeoff','Write-off-ын дараах ашиг (%)','3.3',number(None,100))
+        add('margin_after_writeoff','Акт-ын дараах ашиг (%)','3.3',number(None,100))
         add('margin_target','Gate 0 (0.21) ашгийн зорилт (%)','3.3',readonly())
         add('margin_difference','Ашгийн зөрүү (хувийн пункт)','3.3',readonly())
-        add('writeoff_percent_of_cost','Write-off (өртгийн %)','3.4',number(0,100))
-        add('writeoff_target','Gate 0 (0.21) write-off зорилт (%)','3.4',readonly())
-        add('writeoff_difference','Write-off зөрүү (хувийн пункт)','3.4',readonly())
+        add('writeoff_percent_of_cost','акт (өртгийн %)','3.4',number(0,100))
+        add('writeoff_target','Gate 0 (0.21) акт зорилт (%)','3.4',readonly())
+        add('writeoff_difference','акт зөрүү (хувийн пункт)','3.4',readonly())
         add('availability','Бараагүй байсан дэлгүүр-хоног (%)','3.5',number(0,100))
         self.fields['availability'].help_text+=' Энэ нь бараа тасарсан дэлгүүр-хоногийн хувь юм.'
         add('shelf_samples_day7_day14','Day 7 дээж зөвшөөрөх хүрээнд эсэх','3.6',enum(yesno,True))
@@ -101,6 +102,8 @@ class Gate3Form(forms.Form):
         add('lesson_tags','Сургамжийн шошго','3.10',forms.MultipleChoiceField(choices=LESSON_TAGS,widget=forms.CheckboxSelectMultiple))
         for key,label in [('handover_final_cogs','Эцсийн COGS байгаа эсэх'),('handover_technology_document','Технологи шилжүүлэх баримт байгаа эсэх'),('handover_label','Шошго байгаа эсэх'),('handover_marketing_plan','Маркетингийн төлөвлөгөө байгаа эсэх'),('handover_pack_complete','Handover багц бүрэн эсэх')]:
             add(key,label,'3.11',enum(yesno,True))
+        from .dropdown_options import apply_options
+        apply_options(self, 'gate3')
         self.legacy_values=[]
         if not self.is_bound:
             for key,field in self.fields.items():

@@ -61,6 +61,12 @@ class Gate1LineForm(MongolianModelForm):
         self.fields['ingredient'].queryset=Ingredient.objects.filter(unit='kg')
         import json
         self.fields['ingredient'].widget.attrs['data-prices']=json.dumps({str(item.pk):str(item.price) for item in self.fields['ingredient'].queryset})
+        from django.urls import reverse
+        from .dropdown_widgets import AddableSelect
+        ingredient = self.fields['ingredient']
+        ingredient.widget = AddableSelect(attrs=ingredient.widget.attrs, choices=ingredient.choices)
+        ingredient.widget.attrs.update({'data-options-url': reverse('add_dropdown_option'),
+            'data-option-stage': 'gate1', 'data-option-field': 'recipe_ingredient'})
         self.fields['yield_factor'].required=False
         self.fields['unit_price'].required=False
         self.fields['net_grams'].label='Нэг бүтээгдэхүүнд орох цэвэр жин (г)'

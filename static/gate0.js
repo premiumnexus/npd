@@ -14,6 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('form').forEach(form => {
     const route=form.querySelector('[name="product_type"]');
     if (!route) return;
+    const evidence=form.querySelector('[name="evidence_level"]');
+    const evidenceReminder=form.querySelector('[data-evidence-reminder]');
+    if(evidence && evidenceReminder) {
+      const updateEvidenceReminder=()=>{ evidenceReminder.hidden=Boolean(evidence.value); };
+      evidence.addEventListener('change',updateEvidenceReminder);
+      form.addEventListener('reset',()=>setTimeout(updateEvidenceReminder,0));
+      updateEvidenceReminder();
+    }
     const outputs={};
     form.querySelectorAll('[data-costing-output]').forEach(input=>outputs[input.dataset.costingOutput]=input);
     if(outputs.vat_percent) {
@@ -47,10 +55,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const category=form.querySelector('[name="category"]');
     const subcategory=form.querySelector('[name="subcategory"]');
     if(category && subcategory && !subcategory.disabled) {
-      const options=JSON.parse(subcategory.dataset.options || '[]');
       category.addEventListener('change',()=>{
-        subcategory.replaceChildren(new Option('---------',''));
-        options.filter(option=>option.category===category.value).forEach(option=>subcategory.add(new Option(option.label,option.code)));
+        const placeholder=new Option(subcategory.getAttribute('placeholder') || '---------','',true,true);
+        if(subcategory.hasAttribute('data-gate-placeholder')) {
+          placeholder.disabled=true;
+          placeholder.hidden=true;
+        }
+        subcategory.replaceChildren(placeholder);
+        // Read the current dataset, which also includes options added in this page.
+        const currentOptions=JSON.parse(subcategory.dataset.options || '[]');
+        currentOptions.filter(option=>option.category===category.value && !Array.from(subcategory.options).some(item=>item.value===option.code)).forEach(option=>subcategory.add(new Option(option.label,option.code)));
+        if(subcategory.hasAttribute('data-options-url')) subcategory.add(new Option('+ Нэмэх','__add_option__'));
+        subcategory.dataset.optionScope=category.value;
+        subcategory.dataset.previousOption='';
       });
     }
   });

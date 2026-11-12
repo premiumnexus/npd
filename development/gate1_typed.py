@@ -4,6 +4,11 @@ from .models import PackagingType,COGSComparisonPolicy
 from .gate0_rows import RowsField
 
 class MaterialRow(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .dropdown_options import apply_options
+        apply_options(self, 'gate1', 'raw_material_spec_price_moq_second_source.')
+
     material=forms.CharField(label='Шинэ / өөрчлөгдсөн түүхий эд')
     spec_written=forms.ChoiceField(label='Спец бичигдсэн эсэх',choices=[('','---------'),('yes','Тийм'),('no','Үгүй')])
     price_kg=forms.DecimalField(label='Үнэ (₮ / кг)',min_value=0,max_digits=14,decimal_places=2)
@@ -40,6 +45,7 @@ class Gate1Form(forms.Form):
         def add(key,label,number,field):
             field.required=False
             field.label=label
+            field.gate_number=number
             field.help_text=number+' · '+str(field.help_text or '')
             self.fields[key]=field
         def text(): return forms.CharField(widget=forms.Textarea(attrs={'rows':2}))
@@ -89,6 +95,8 @@ class Gate1Form(forms.Form):
         add('marketing_name','Маркетингийн нэр','1.10',text())
         add('marketing_key_message','Гол мессеж','1.10',text())
         add('marketing_brief','Нэвтрүүлэх санаа','1.10',text())
+        from .dropdown_options import apply_options
+        apply_options(self, 'gate1')
         self.legacy_values=[]
         if not self.is_bound:
             for key,field in self.fields.items():

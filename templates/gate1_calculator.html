@@ -15,7 +15,7 @@
       {% if editable %}<td><form method="post" id="recipe-line-{{ line.pk }}">{% csrf_token %}<input type="hidden" name="line" value="{{ line.pk }}"><input type="hidden" name="ingredient" value="{{ line.ingredient_id }}"><button class="secondary" name="action" value="gate1_line_update">Хадгалах</button><button class="link" name="action" value="gate1_line_remove" formnovalidate>Хасах</button></form></td>{% endif %}
     </tr>{% empty %}<tr><td colspan="6">Тооцоололд орц нэмээгүй байна.</td></tr>{% endfor %}</tbody>
   </table></div>
-  {% if editable %}<form method="post" class="gate0-fields" data-recipe-add>{% csrf_token %}{{ ingredient_form.as_p }}<p>Орцын өртөг: <output data-new-line-cost>—</output></p><div><button class="secondary" name="action" value="gate1_line_add">Орц нэмэх</button></div></form>{% endif %}
+  {% if editable %}<form method="post" class="gate0-fields" data-option-food="{{ food.pk }}" data-recipe-add>{% csrf_token %}{{ ingredient_form.as_p }}<p>Орцын өртөг: <output data-new-line-cost>—</output></p><div><button class="secondary" name="action" value="gate1_line_add">Орц нэмэх</button></div></form>{% endif %}
   {% if editable %}<form method="post">{% csrf_token %}{{ packaging_form.as_p }}<button class="secondary" name="action" value="gate1_packaging_save">Савлагааны зардал хадгалах</button></form>
   {% else %}<p>Нэгжийн сав баглаа боодлын зардал: <span data-packaging="{{ food.packaging|stringformat:'.2f' }}">₮{{ food.packaging|floatformat:0 }}</span></p>{% endif %}
   <div class="costcard">
@@ -28,4 +28,4 @@
     <small>Red үед Fresh Food Manager зөвшөөрсний дараа Merchandising Director шийдвэрлэнэ. Өөрчлөлтөө хадгалсны дараа баталгаажуулна.</small>
   </div>
 </section>
-<script src="{% static 'gate1-calculator.js' %}" defer></script>
+<script src="{% static 'gate1-calculator.js' %}?v=shared-dropdowns-1" defer></script>

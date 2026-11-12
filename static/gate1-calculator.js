@@ -5,15 +5,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   const add=root.querySelector('[data-recipe-add]');
   if(add) {
     const ingredient=add.querySelector('[name="ingredient"]'),price=add.querySelector('[name="unit_price"]');
-    const prices=JSON.parse(ingredient.dataset.prices || '{}');
+    const prices=()=>JSON.parse(ingredient.dataset.prices || '{}');
     const preview=()=>{
       const grams=Number(add.querySelector('[name="net_grams"]').value);
       const factor=Number(add.querySelector('[name="yield_factor"]').value || 1);
-      const rate=price.value===''?Number(prices[ingredient.value]):Number(price.value);
+      const rate=price.value===''?Number(prices()[ingredient.value]):Number(price.value);
       const valid=add.checkValidity() && factor>=0.01 && factor<=1 && Number.isFinite(rate);
       add.querySelector('[data-new-line-cost]').textContent=valid?'₮'+(grams/1000/factor*rate).toFixed(0):'—';
     };
-    ingredient.addEventListener('change',()=>{price.value=prices[ingredient.value] || '';preview();});
+    ingredient.addEventListener('change',()=>{price.value=prices()[ingredient.value] || '';preview();});
     add.addEventListener('input',preview);
     preview();
   }

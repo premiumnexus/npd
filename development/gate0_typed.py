@@ -6,6 +6,14 @@ from django.utils import timezone
 from .models import Gate0Option, Supplier
 from .gate0_rows import RowsField,CompetitorRow,AnalogRow,CannibalisationRow
 
+class DaypartChoiceField(forms.MultipleChoiceField):
+    def to_python(self, value):
+        # Existing briefs and older clients contain one daypart as a string.
+        if isinstance(value, str) and value:
+            value = [value]
+        return super().to_python(value)
+
+
 class Gate0Form(forms.Form):
     def __init__(self,*args,food=None,submission=False,**kwargs):
         super().__init__(*args,**kwargs)
@@ -17,6 +25,7 @@ class Gate0Form(forms.Form):
         selected_category=(self.data.get('category') if self.is_bound else self.initial.get('category'))
         def add(key,label,number,field):
             field.label=label
+            field.gate_number=number
             field.help_text=number+' · '+str(field.help_text or '')
             self.fields[key]=field
         def text(required=False): return forms.CharField(required=required,widget=forms.Textarea(attrs={'rows':2}))
@@ -38,10 +47,10 @@ class Gate0Form(forms.Form):
         add('product_role','Бүтээгдэхүүний үүрэг','0.4',enum(choices('product_role'),required))
         self.fields['product_role'].help_text+=' Тайлан, шүүлтэд ашиглана. Ашгийн тооцоонд нөлөөлөхгүй.'
         add('customer_segment','Зорилтот хэрэглэгчийн сегмент','0.5',enum(choices('segment'),required))
-        add('daypart','Хэрэглээний үе','0.5',enum([('morning','Өглөө'),('lunch','Өдөр'),('evening','Орой'),('late','Шөнө')],required))
+        add('daypart','Хэрэглээний үе','0.5',DaypartChoiceField(choices=[('morning','Өглөө'),('lunch','Өдөр'),('evening','Орой'),('late','Шөнө')],required=required,widget=forms.SelectMultiple(attrs={'data-multiselect':True})))
         add('target_customer_occasion','Зорилтот хэрэглэгч, хэрэглээний тайлбар','0.5',text())
         add('customer_need_evidence','Хэрэглээний нотолгоо','0.6',text(required))
-        add('evidence_level','Нотолгооны түвшин','0.6',enum([('A','A · Хэрэглэгчээр эсвэл борлуулалтын датагаар баталсан'),('B','B · POS эсвэл өрсөлдөгчийн дата'),('C','C · Дотоод ярилцлага, эх сурвалжтай'),('D','D · Зөвхөн санаа')],required))
+        add('evidence_level','Нотолгооны төрөл','0.6',enum([('A','A · POS / борлуулалтын өгөгдөл'),('B','B · Хэрэглэгчийн судалгаа'),('C','C · Дэлгүүрийн хүсэлт'),('D','D · Өрсөлдөгчийн үнэ'),('E','E · борлуулалт'),('F','F · Гадаад CU/BGF борлуулалт'),('G','G · Тренд')],required))
         add('evidence_reference','Нотолгооны эх сурвалж','0.6',text())
         add('competitor_benchmark','Өрсөлдөгчийн жишиг','0.7',RowsField(CompetitorRow,required=False,complete=False))
         add('target_shelf_price','Зорилтот тавиурын үнэ (НӨАТ-тай, ₮)','0.8',forms.IntegerField(min_value=1,required=required))
@@ -72,8 +81,8 @@ class Gate0Form(forms.Form):
         for key in ['target_shelf_price','cu_margin','vendor_rebate','vendor_margin']:
             self.fields[key].widget.attrs['class']='costing-input'
         add('analog_skus_sales_target','Жишиг SKU (3 хүртэл мөр, заавал биш)','0.14',RowsField(AnalogRow,minimum=0,maximum=3,complete=False,required=False))
-        add('target_units_store_day','Зорилтот ширхэг / дэлгүүр / өдөр','0.14',number(None,2,required))
-        add('store_scope','Дэлгүүрийн хамрах хүрээ','0.15',enum([('all','Бүх дэлгүүр'),('cluster','Кластер'),('pilot','Туршилт')],required))
+        add('target_units_store_day','Зорилтот APSD (ширхэг / дэлгүүр / өдөр)','0.14',number(None,2,required))
+        add('store_scope','Дэлгүүрийн хамрах хүрээ','0.15',enum([('all','Бүх дэлгүүр'),('cluster','Кластер'),('pilot','Сонгосон дэлгүүр (туршилт)')],required))
         add('store_cluster','Дэлгүүрийн кластер','0.15',enum(choices('cluster')))
         add('store_count','Дэлгүүрийн тоо','0.15',forms.IntegerField(min_value=1,required=required))
         add('cannibalisation','Каннибализаци','0.16',RowsField(CannibalisationRow,complete=False,required=False))
@@ -82,17 +91,19 @@ class Gate0Form(forms.Form):
         add('new_supplier','Шинэ нийлүүлэгч байгаа эсэх','0.17',enum(yesno,required))
         add('seasonal_price_swing','Улирлын үнийн хэлбэлзэл байгаа эсэх','0.17',enum(yesno,required))
         add('moq','Захиалгын доод хэмжээ (MOQ)','0.17',number(None,2,required))
-        add('first_capacity_check','Хүчин чадлын анхны үнэлгээ','0.18',enum(yesno+[('unknown','Тодорхойгүй')],required))
+        add('first_capacity_check','Хүчин чадлын анхны үнэлгээ','0.18',enum([('available', 'Боломжтой'),('unavailable','Боломжгүй'),('conditional','Нөхцөлтэй')],required))
         add('capacity_units_day','Хүчин чадал (ширхэг / өдөр)','0.18',number(None,2,required))
         add('first_food_safety_risk','Харшил үүсгэгч','0.19',forms.MultipleChoiceField(choices=choices('allergen'),required=False,widget=forms.CheckboxSelectMultiple))
         add('high_risk_inputs','Өндөр эрсдэлтэй орц','0.19',forms.MultipleChoiceField(choices=choices('high_risk'),required=False,widget=forms.CheckboxSelectMultiple))
         add('shelf_life_days','Хадгалах хугацаа (хоног, шаардлагатай бол)','0.19',forms.IntegerField(min_value=1,required=False))
-        add('technical_risk_measure','Хэмжих техникийн эрсдэл','0.20',text())
+        add('technical_risk_measure','Шинжилгээ, хэмжилтээр шалгах технологийн эрсдэл','0.20',text())
         add('day45_success_criteria','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','0.21',number(None,2,required))
-        add('day45_writeoff_percent','45 хоногийн write-off (өртгийн %)','0.21',number(100,1,required))
-        add('day45_margin_percent','45 хоногийн write-off-ын дараах ашиг (%)','0.21',forms.DecimalField(decimal_places=2,max_digits=14,required=required))
+        add('day45_writeoff_percent','45 хоногийн акт (өртгийн %)','0.21',number(100,1,required))
+        add('day45_margin_percent','45 хоногийн акт-ын дараах ашиг (%)','0.21',forms.DecimalField(decimal_places=2,max_digits=14,required=required))
         add('planned_launch_date','Төлөвлөсөн нэвтрүүлэх огноо','0.22',forms.DateField(required=required,widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'})))
         self.fields['planned_launch_date'].help_text+=' Өнөөдрөөс 30 хоногийн дотор байвал анхааруулна. Илгээхийг хориглохгүй.'
+        from .dropdown_options import apply_options
+        apply_options(self, 'gate0')
         self.legacy_values=[]
         # Keep unconverted old text visible for manual conversion; never infer numbers.
         if not self.is_bound:

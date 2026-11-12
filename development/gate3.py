@@ -5,8 +5,8 @@ from django import forms
 FIELDS = [
     ('3.1','planned_vs_actual_launch_date','Нэвтрүүлсэн огноо: төлөвлөгөө vs бодит'),
     ('3.2','sales_vs_target','Борлуулалт vs зорилт'),
-    ('3.3','margin_after_writeoff','Write-off-ын дараах ашиг'),
-    ('3.4','writeoff_percent_of_cost','Write-off, өртгийн %'),
+    ('3.3','margin_after_writeoff','акт-ын дараах ашиг'),
+    ('3.4','writeoff_percent_of_cost','акт, өртгийн %'),
     ('3.5','availability','Бэлэн байдал'),
     ('3.6','shelf_samples_day7_day14','Day 7, 14 тавиурын дээж'),
     ('3.7','complaints','Гомдол'),
@@ -17,7 +17,7 @@ FIELDS = [
 ]
 
 FILE_SLOTS = [
-    ('G3-F1','45 хоногийн борлуулалт, write-off extract'),
+    ('G3-F1','45 хоногийн борлуулалт, акт extract'),
     ('G3-F2','Day 7, 14 дээжийн бүртгэл'),
     ('G3-F3','Гомдлын бүртгэл'),
 ]

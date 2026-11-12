@@ -46,6 +46,7 @@ class Gate2Form(forms.Form):
         def add(key,label,number,field):
             field.required=False
             field.label=label
+            field.gate_number=number
             field.help_text=number+' · '+str(field.help_text or '')
             self.fields[key]=field
         def text(): return forms.CharField(widget=forms.Textarea(attrs={'rows':2}))
@@ -126,8 +127,8 @@ class Gate2Form(forms.Form):
         add('quality_taste_range','Амтын зөвшөөрөх хүрээ','2.10',text())
         add('day45_target_confirmed','45 хоногийн зорилтын сонголт','2.11',enum([('same','Gate 0 (0.21)-тэй ижил'),('changed','Өөрчилсөн')]))
         add('day45_units_store_day','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','2.11',number())
-        add('day45_writeoff_percent','45 хоногийн write-off (өртгийн %)','2.11',number(0,100))
-        add('day45_margin_percent','45 хоногийн write-off-ын дараах ашиг (%)','2.11',forms.DecimalField(max_digits=14,decimal_places=2))
+        add('day45_writeoff_percent','45 хоногийн акт (өртгийн %)','2.11',number(0,100))
+        add('day45_margin_percent','45 хоногийн акт-ын дараах ашиг (%)','2.11',forms.DecimalField(max_digits=14,decimal_places=2))
         add('day45_change_reason','45 хоногийн зорилт өөрчилсөн шалтгаан','2.11',text())
         self.fields['day45_change_reason'].help_text+=' Өөрчилсөн бол тайлбар оруулж болно. Талбар заавал биш.'
         add('original_launch_date','Gate 0 (0.22) төлөвлөсөн огноо','2.12',forms.CharField(disabled=True))
@@ -135,6 +136,8 @@ class Gate2Form(forms.Form):
         add('launch_delay_days','Төлөвлөгөөнөөс зөрсөн хоног (+ хойшилсон / − урагшилсан)','2.12',forms.CharField(disabled=True))
         add('launch_date_change_reason','Нэвтрүүлэх огноо өөрчилсөн шалтгаан','2.12',text())
         self.fields['launch_date_change_reason'].help_text+=' Огноо зөрвөл тайлбар оруулж болно. Талбар заавал биш.'
+        from .dropdown_options import apply_options
+        apply_options(self, 'gate2')
         self.legacy_values=[]
         if not self.is_bound:
             for key,field in self.fields.items():
