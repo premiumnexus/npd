@@ -9,6 +9,7 @@
     document.documentElement.dataset.theme = theme;
     document.querySelectorAll('[data-theme-toggle]').forEach(function (button) {
       button.setAttribute('aria-pressed', String(theme === 'dark'));
+      button.setAttribute('title', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
     });
   }
 

@@ -59,7 +59,16 @@ td.costing-result { background: #e2f0d9; color: #192d40; font-weight: 700; }
 
 /* Shared theme applies to every page, including sign-in. */
 :root{color-scheme:light}
-.theme-toggle{gap:6px;padding:8px 10px;font-size:11px}
+.theme-toggle{width:40px;height:40px;min-width:40px;padding:0;border-radius:50%;flex-shrink:0;transition:transform .2s ease,background-color .25s ease,border-color .25s ease,box-shadow .2s ease}
+.theme-toggle:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgb(102 52 152 / 18%)}
+.theme-toggle:active{transform:scale(.94)}
+.theme-toggle-icon{width:21px;height:21px;overflow:visible}
+.theme-toggle-icon g{transform-origin:12px 12px;transition:transform .35s ease,opacity .25s ease}
+.theme-toggle-sun{opacity:1;transform:rotate(0) scale(1)}
+.theme-toggle-moon{opacity:0;transform:rotate(-60deg) scale(.5)}
+.theme-toggle[aria-pressed=true] .theme-toggle-sun{opacity:0;transform:rotate(60deg) scale(.5)}
+.theme-toggle[aria-pressed=true] .theme-toggle-moon{opacity:1;transform:rotate(0) scale(1)}
+@media(prefers-reduced-motion:reduce){.theme-toggle,.theme-toggle-icon g{transition:none}.theme-toggle:hover,.theme-toggle:active{transform:none}}
 .theme-toggle:focus-visible{outline:2px solid var(--purple);outline-offset:3px}
 .theme-toggle[aria-pressed=true]{background:#342645;border-color:#9471b9;color:#eadcf9}
 html[data-theme=dark]{color-scheme:dark;--purple:#c09ae8;--ink:#eee8f5;--muted:#b2a8bf;--line:#393140;--green:#88c9a5}
