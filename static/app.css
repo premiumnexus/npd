@@ -113,3 +113,15 @@ html[data-theme=dark] [data-cogs-status]{--cogs-bg:#35303e;--cogs-ink:#d5cddd}
 html[data-theme=dark] [data-cogs-status="Green"]{--cogs-bg:#253e30;--cogs-ink:#b5e5bd}
 html[data-theme=dark] [data-cogs-status="Amber"]{--cogs-bg:#493b1e;--cogs-ink:#ffe19b}
 html[data-theme=dark] [data-cogs-status="Red"]{--cogs-bg:#4c2930;--cogs-ink:#ffb9c0}
+.apsd-achievement{display:inline-flex;padding:10px 14px;border-radius:6px;background:#eceaf0;color:#595362;font-weight:700}
+.apsd-achievement[data-status=Green]{background:#e2f0d9;color:#24582e}
+.apsd-achievement[data-status=Amber]{background:#fff0c2;color:#765000}
+.apsd-achievement[data-status=Red]{background:#fde3e5;color:#922831}
+html[data-theme=dark] .apsd-achievement{background:#35303e;color:#d5cddd}
+html[data-theme=dark] .apsd-achievement[data-status=Green]{background:#253e30;color:#b5e5bd}
+html[data-theme=dark] .apsd-achievement[data-status=Amber]{background:#493b1e;color:#ffe19b}
+html[data-theme=dark] .apsd-achievement[data-status=Red]{background:#4c2930;color:#ffb9c0}
+[data-launch-checkpoint] [data-checkpoint-actions],[data-launch-checkpoint] .gate0-file-slot{grid-column:1 / -1}
+.brand{gap:12px;letter-spacing:0}
+.brand-logo{display:block;width:76px;height:auto;flex-shrink:0}
+@media(max-width:1100px){.brand{gap:10px}.brand-logo{width:64px}.brand span{font-size:11px;letter-spacing:1px;padding-left:12px}}

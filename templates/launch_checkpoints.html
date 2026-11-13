@@ -1,3 +1,5 @@
+{% load static %}
+<script src="{% static 'launch-checkpoints.js' %}?v=day14-check-2" defer></script>
 <section class="panel padded">
   <h2>Launch GO · Хугацаат хяналт</h2>
   {% if launch_schedule.started_at %}<p>Нэвтрүүлсэн: {{ launch_schedule.started_at|date:'Y-m-d H:i' }} · Gate 3 нээгдэх: {{ launch_schedule.day45_at|date:'Y-m-d H:i' }}</p>
@@ -5,16 +7,30 @@
 </section>
 {% for checkpoint in checkpoint_cards %}
 <section class="panel padded">
-  <h2>Day {{ checkpoint.day }} · {% if checkpoint.day == 7 %}Тавиурын дээж{% else %}Хадгалах хугацааны төгсгөлийн дээж{% endif %}</h2>
-  <p>Хариуцах баг: Food Science, FF Planning{% if checkpoint.day == 14 %}, QA{% endif %}.</p>
-  {% if checkpoint.due %}<p>Файл хавсаргах эрх нээгдэх: <strong>{{ checkpoint.due|date:'Y-m-d H:i' }}</strong></p>{% endif %}
+  <h2>Day {{ checkpoint.day }} – {{ checkpoint.day }} {% if checkpoint.day == 7 %}дахь{% else %}дэх{% endif %} өдрийн шалгалт</h2>
+  <p>Хариуцах баг: Хүнсний технологич, FF төлөвлөлт{% if checkpoint.day == 14 %}, QA{% endif %}.</p>
+  {% if checkpoint.due %}<p>Шалгалт бүртгэх эрх нээгдэх: <strong>{{ checkpoint.due|date:'Y-m-d H:i' }}</strong></p>{% endif %}
   {% if not checkpoint.unlocked %}<div class="notice">Хугацаа болоогүй тул зөвхөн харах боломжтой.</div>{% elif not checkpoint.editable %}<p>Зөвхөн харах боломжтой.</p>{% endif %}
   <details class="checkpoint-baseline"><summary>Gate 2 (2.10) · Харьцуулах чанарын шалгуур</summary>
     <dl><dt>Зорилтот жин</dt><dd>{{ checkpoint.baseline.quality_tolerance_baseline|default:'—' }} г</dd><dt>Жингийн зөвшөөрөх хүрээ</dt><dd>{{ checkpoint.baseline.quality_weight_min|default:'—' }} – {{ checkpoint.baseline.quality_weight_max|default:'—' }} г</dd><dt>Бүтцийн зорилт / хүрээ</dt><dd>{{ checkpoint.baseline.quality_texture_target|default:'—' }} / {{ checkpoint.baseline.quality_texture_range|default:'—' }}</dd><dt>Амтын зорилт / хүрээ</dt><dd>{{ checkpoint.baseline.quality_taste_target|default:'—' }} / {{ checkpoint.baseline.quality_taste_range|default:'—' }}</dd></dl>
   </details>
-  <form method="post" enctype="multipart/form-data" class="formgrid">
+  <form method="post" enctype="multipart/form-data" class="gate0-fields" data-launch-checkpoint data-editable="{{ checkpoint.editable|yesno:'true,false' }}">
     {% csrf_token %}<input type="hidden" name="day" value="{{ checkpoint.day }}">
     {{ checkpoint.form.non_field_errors }}
+    {% for field in checkpoint.form %}
+      {% if field.name != 'report' %}
+      <div class="gate0-field"{% if field.name == 'action_plan' %} data-checkpoint-actions{% if not checkpoint.form.action_required %} hidden{% endif %}{% endif %}>
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {% if field.name == 'achievement_percent' %}
+          <output id="{{ field.id_for_label }}" class="apsd-achievement" data-apsd-achievement data-status="{{ checkpoint.form.achievement.status }}" aria-live="polite">{% if checkpoint.form.achievement.percent is not None %}{{ checkpoint.form.achievement.percent|floatformat:2 }}%{% else %}—{% endif %}</output>
+          <small>Бодит APSD / Зорилтот APSD × 100 · Ногоон ≥ 100%, Шар ≥ 80%, Улаан &lt; 80%.</small>
+        {% else %}{{ field }}{% endif %}
+        {{ field.errors }}
+        {% if field.field.responsible_role %}<small>{{ field.field.responsible_role }}</small>{% endif %}
+        {% if field.name == 'target_apsd' %}<small>Gate 2 (2.11)-ээс автоматаар бөглөнө.</small>{% endif %}
+      </div>
+      {% endif %}
+    {% endfor %}
     {% for upload in checkpoint.upload_fields %}
       <div class="gate0-file-slot">
         <label for="{{ upload.field.id_for_label }}">{{ upload.field.label }}</label>
@@ -22,10 +38,10 @@
           <a class="attachment-link" href="{% url 'download_attachment' item.pk %}">{{ item.attachment_name }}</a>
           <small>{{ item.actor }} · {{ item.created|date:'Y-m-d H:i' }}</small>
         {% empty %}<small>Файл хавсаргаагүй байна.</small>{% endfor %}
-        {{ upload.field.errors }}{{ upload.field }}
+        {{ upload.field.errors }}{% if checkpoint.editable %}{{ upload.field }}{% endif %}
       </div>
     {% endfor %}
-    {% if checkpoint.editable %}<div><button class="button" name="action" value="checkpoint_save">Day {{ checkpoint.day }} · Файл хавсаргах</button></div>{% endif %}
+    {% if checkpoint.editable %}<div><button class="button" name="action" value="checkpoint_save">Day {{ checkpoint.day }} · Хадгалах</button></div>{% endif %}
   </form>
 </section>
 {% endfor %}

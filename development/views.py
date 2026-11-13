@@ -18,7 +18,7 @@ from .gate3 import Gate3Form, initial_brief as initial_gate3, save_brief as save
 from .gate3_typed import ROOT_CAUSES,LESSON_TAGS
 from .timing import record_transition,gate_timing
 from .role_progress import role_progress
-from .launch import schedule as launch_schedule,checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,open_gate3_if_due,open_due_reviews
+from .launch import schedule as launch_schedule,checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,save_checkpoint,open_gate3_if_due,open_due_reviews
 
 def allowed(user, role):
     return user.is_superuser or user.groups.filter(name=role).exists()
@@ -140,10 +140,11 @@ def detail(request,pk):
                 try: day=int(request.POST.get('day',''))
                 except (ValueError,TypeError): return HttpResponseForbidden('Хяналтын өдөр тохирохгүй байна.')
                 if not can_edit_checkpoint(request.user,food,day): return HttpResponseForbidden('Хугацаа болоогүй эсвэл энэ хяналтыг засах эрхгүй байна.')
-                form=CheckpointForm(request.POST,request.FILES,day=day)
+                form=CheckpointForm(request.POST,request.FILES,day=day,food=food,user=request.user)
                 if not form.is_valid():
                     checkpoint_error={'day':day,'form':form}
                     return render_page(checkpoint_error)
+                save_checkpoint(food,request.user,form)
                 for slot,key,label in checkpoint_slots(day):
                     uploaded=form.cleaned_data.get(key)
                     if uploaded:

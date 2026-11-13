@@ -172,6 +172,9 @@ class Gate3Brief(models.Model):
 class LaunchCheckpoint(models.Model):
     food=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='launch_checkpoints')
     day=models.PositiveSmallIntegerField('Өдөр',choices=[(7,'Day 7'),(14,'Day 14')])
+    checked_date=models.DateField('Шалгасан огноо',null=True,blank=True)
+    sample_result=models.CharField('Дээжийн үр дүн',max_length=11,blank=True,choices=[('within','Хязгаарт багтсан'),('conditional','Нөхцөлтэй'),('outside','Хязгаараас гарсан')])
+    action_plan=models.TextField('Арга хэмжээ, хариуцагч, хугацаа',blank=True)
     within_tolerance=models.CharField('Зөвшөөрөх хүрээнд байгаа эсэх',max_length=3,blank=True,choices=[('yes','Тийм'),('no','Үгүй')])
     sample_weight=models.DecimalField('Дээжийн жин (г)',max_digits=12,decimal_places=3,null=True,blank=True,validators=NONNEGATIVE)
     sample_texture=models.TextField('Дээжийн бүтэц',blank=True)
@@ -207,7 +210,7 @@ class Activity(models.Model):
     attachment = models.FileField(upload_to=activity_upload_path,blank=True)
     attachment_name = models.CharField(max_length=255,blank=True)
     attachment_stage = models.CharField(max_length=20,choices=STAGES,blank=True)
-    attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,11)]+['G2-F%s' % number for number in range(1,13)]+['G3-F%s' % number for number in range(1,4)]+['L%sF%s' % (day,number) for day in [7,14] for number in range(1,8 if day==7 else 10)]])
+    attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,11)]+['G2-F%s' % number for number in range(1,13)]+['G3-F%s' % number for number in range(1,4)]+['L%sF%s' % (day,number) for day in [7,14] for number in range(1,9 if day==7 else 11)]])
     created = models.DateTimeField(auto_now_add=True)
     class Meta: ordering = ['-created']
 
