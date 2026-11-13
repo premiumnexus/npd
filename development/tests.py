@@ -19,7 +19,7 @@ def valid_gate0():
         'analog_skus_sales_target':[{'sku':'SKU1','units_per_store_day':'10'},{'sku':'SKU2','units_per_store_day':'12'}],
         'target_units_store_day':'15','store_scope':'all','store_count':'20',
         'raw_materials_supply_risk':'no','new_supplier':'no','seasonal_price_swing':'yes','moq':'100',
-        'first_capacity_check':'yes','capacity_units_day':'500','day45_success_criteria':'15',
+        'first_capacity_check':'available','capacity_units_day':'500','day45_success_criteria':'15',
         'day45_writeoff_percent':'5','day45_margin_percent':'30','planned_launch_date':'2027-05-01',
     }
 
@@ -456,7 +456,7 @@ class DevelopmentTests(TestCase):
         form=Gate3Form({'handover_pack_complete':'yes'},food=self.food)
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['handover_pack_complete'],'no')
-        save_gate2(self.food,{'typed_cogs':'1500','final_technology_transfer_document':'Signed version 1','label_check':'Product label','marketing_plan':'Launch channels'})
+        save_gate2(self.food,{'typed_cogs':'1500','final_technology_transfer_document':'Signed version 1','label_checked':'yes','marketing_plan':'Launch channels'})
         form=Gate3Form({'handover_pack_complete':'no'},food=self.food)
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['handover_pack_complete'],'yes')
@@ -474,11 +474,11 @@ class DevelopmentTests(TestCase):
         form=Gate2Form({},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertTrue(all(not field.required for field in form.fields.values()))
-        for key,value in [('trial_yield_percent','101'),('trial_taste_score','6'),('mass_trial_result','-1'),('allocation','2.5'),('lab_results_approved_shelf_life','unknown'),('signed_qa','maybe'),('launch_date','not-a-date')]:
+        for key,value in [('trial_yield_percent','101'),('trial_taste_score','6'),('mass_trial_result','-1'),('allocation','2.5'),('lab_results_approved_shelf_life','unknown'),('label_checked','maybe'),('launch_date','not-a-date')]:
             form=Gate2Form({key:value},food=self.food)
             self.assertFalse(form.is_valid(),(key,value))
             self.assertIn(key,form.errors)
-        form=Gate2Form({'cold_chain_temperature':'-18','barcode_system_registration':'00123456789','signed_npd':'yes','signed_qa':'no','signed_producer':'yes'},food=self.food)
+        form=Gate2Form({'cold_chain_temperature':'-18','barcode_system_registration':'00123456789','label_checked':'yes'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['barcode_system_registration'],'00123456789')
 
@@ -489,10 +489,11 @@ class DevelopmentTests(TestCase):
         save_brief(self.food,{'planned_launch_date':'2027-04-01'})
         self.food.recipe_version=4; self.food.save()
         save_gate1(self.food,{'typed_cogs':'1500'})
-        form=Gate2Form({'launch_date':'2027-04-11','final_recipe_version':'999','launch_delay_days':'999'},food=self.food)
+        form=Gate2Form({'launch_date':'2027-04-11','original_launch_date':'2099-01-01','final_recipe_version':'999','launch_delay_days':'999'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['final_recipe_version'],4)
         self.assertEqual(form.cleaned_data['launch_delay_days'],10)
+        self.assertEqual(form.cleaned_data['original_launch_date'],'2027-04-01')
         self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],20100)
         self.assertIsNone(form.cleaned_data['front_margin_percent'])
         form=Gate2Form({'typed_cogs':'1700','launch_date':'2027-03-30'},food=self.food)
@@ -500,10 +501,39 @@ class DevelopmentTests(TestCase):
         self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],20100)
         self.assertEqual(form.cleaned_data['launch_delay_days'],-2)
 
+    def test_gate2_launch_dates_autofill_and_delay_persist_across_leap_day(self):
+        from .gate0 import save_brief as save_gate0
+        from .gate2 import save_brief as save_gate2,initial_brief
+        save_gate0(self.food,{'planned_launch_date':'2028-02-28'})
+        self.food.stage='gate2'; self.food.save()
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        save_gate2(self.food,{'original_launch_date':'2030-01-01','launch_delay_days':999,'launch_date':'2028-03-01'})
+        url='/food/%s/' % self.food.pk
+        form=self.client.get(url).context['gate2form']
+        self.assertEqual(form.initial['original_launch_date'],'2028-02-28')
+        self.assertEqual(form.initial['launch_delay_days'],2)
+        self.assertTrue(form.fields['original_launch_date'].disabled)
+        self.assertTrue(form.fields['launch_delay_days'].disabled)
+        for actual,expected in [('2028-02-27',-1),('2028-02-28',0),('2028-03-01',2),('','')]:
+            response=self.client.post(url,{'action':'gate2_save','launch_date':actual,'original_launch_date':'2099-01-01','launch_delay_days':'999'})
+            self.assertEqual(response.status_code,302)
+            saved=initial_brief(self.food)
+            self.assertEqual(saved['original_launch_date'],'2028-02-28')
+            self.assertEqual(saved['launch_delay_days'],expected)
+        save_gate0(self.food,{})
+        self.assertEqual(self.client.post(url,{'action':'gate2_save','launch_date':'2028-03-01'}).status_code,302)
+        saved=initial_brief(self.food)
+        self.assertEqual(saved['original_launch_date'],'')
+        self.assertEqual(saved['launch_delay_days'],'')
+
     def test_gate2_same_day45_targets_copied_from_gate0_or_changed_optionally(self):
         from .gate0 import save_brief
         from .gate2 import Gate2Form
         save_brief(self.food,{'day45_success_criteria':'15','day45_writeoff_percent':'3','day45_margin_percent':'30'})
+        initial=Gate2Form(food=self.food)
+        self.assertEqual(initial.initial['day45_target_confirmed'],'same')
+        self.assertEqual([initial.initial[key] for key in ['day45_units_store_day','day45_writeoff_percent','day45_margin_percent']],['15','3','30'])
+        self.assertTrue(initial.fields['day45_change_reason'].frontend_hidden)
         form=Gate2Form({'day45_target_confirmed':'same','day45_units_store_day':'999'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['day45_units_store_day'],15)
@@ -511,6 +541,40 @@ class DevelopmentTests(TestCase):
         form=Gate2Form({'day45_target_confirmed':'changed','day45_units_store_day':'20'},food=self.food)
         self.assertTrue(form.is_valid())  # Reasons remain optional per user request.
         self.assertEqual(form.cleaned_data['day45_units_store_day'],20)
+        legacy=Gate2Form(initial={'day45_units_store_day':'20','day45_writeoff_percent':'3','day45_margin_percent':'30'},food=self.food)
+        self.assertEqual(legacy.initial['day45_target_confirmed'],'changed')
+        self.assertEqual(legacy.initial['day45_units_store_day'],'20')
+
+    def test_gate2_day45_changed_targets_and_reason_survive_save_and_return_to_gate0(self):
+        from .gate0 import save_brief as save_gate0
+        from .gate2 import initial_brief
+        save_gate0(self.food,{'day45_success_criteria':'15','day45_writeoff_percent':'3','day45_margin_percent':'30'})
+        self.food.stage='gate2'; self.food.save()
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        url='/food/%s/' % self.food.pk
+        page=self.client.get(url)
+        self.assertContains(page,'Gate 0-ийн зорилт хэвээр / Өөрчилсөн')
+        self.assertNotContains(page,'45 хоногийн зорилтын сонголт')
+        mode=page.context['gate2form'].fields['day45_target_confirmed']
+        self.assertEqual(list(mode.choices),[('same','Gate 0-ийн зорилт хэвээр'),('changed','Өөрчилсөн')])
+        changed={'action':'gate2_save','day45_target_confirmed':'changed','day45_units_store_day':'20','day45_writeoff_percent':'4','day45_margin_percent':'28','day45_change_reason':'Updated sales plan'}
+        self.assertEqual(self.client.post(url,changed).status_code,302)
+        saved=initial_brief(self.food)
+        self.assertEqual(saved['day45_change_reason'],'Updated sales plan')
+        page=self.client.get(url)
+        form=page.context['gate2form']
+        self.assertEqual(form.initial['day45_units_store_day'],'20')
+        self.assertFalse(form.fields['day45_change_reason'].frontend_hidden)
+        self.assertFalse(form.fields['day45_units_store_day'].disabled)
+        invalid=self.client.post(url,{**changed,'allocation':'2.5'})
+        self.assertEqual(invalid.status_code,200)
+        self.assertFalse(invalid.context['gate2form'].fields['day45_change_reason'].frontend_hidden)
+        self.assertEqual(self.client.post(url,{**changed,'day45_target_confirmed':'same','day45_units_store_day':'999'}).status_code,302)
+        saved=initial_brief(self.food)
+        self.assertEqual(saved['day45_target_confirmed'],'same')
+        self.assertEqual([Decimal(saved[key]) for key in ['day45_units_store_day','day45_writeoff_percent','day45_margin_percent']],[15,3,30])
+        self.assertEqual(saved['day45_change_reason'],'')
+        self.assertTrue(self.client.get(url).context['gate2form'].fields['day45_change_reason'].frontend_hidden)
 
     def test_gate2_quality_ranges_and_marketing_dates_consistent_when_entered(self):
         from .gate2 import Gate2Form
@@ -580,14 +644,17 @@ class DevelopmentTests(TestCase):
 
     def test_gate1_fridge_checks_dates_and_qa_values_roundtrip(self):
         from .gate1 import Gate1Form,save_brief,initial_brief
-        payload={'fridge_0_texture':'Firm','fridge_0_result':'pass','fridge_72_taste':'Good','fridge_check_72h':'pass','qa_requirements_issued':'yes','process_flow_ccp_issued':'no','shelf_life_result_due':'2027-02-03'}
+        payload={'fridge_0_texture':'Firm','fridge_0_result':'pass','fridge_72_taste':'Good','fridge_check_72h':'pass','fridge_check_date':'2027-02-02','qa_requirements_issued':'yes','process_flow_ccp_issued':'no','shelf_life_result_due':'2027-02-03'}
         form=Gate1Form(payload,food=self.food)
+        self.assertEqual([key for key,field in form.fields.items() if field.gate_number=='1.6'],['fridge_check_72h','fridge_check_date'])
         self.assertTrue(form.is_valid(),form.errors)
         save_brief(self.food,form.cleaned_data)
         saved=initial_brief(self.food)
-        self.assertEqual(saved['fridge_72_taste'],'Good')
+        self.assertEqual(saved['fridge_check_72h'],'pass')
+        self.assertEqual(saved['fridge_check_date'],'2027-02-02')
         self.assertEqual(saved['shelf_life_result_due'],'2027-02-03')
         self.assertTrue(Gate1Form(saved,food=self.food).is_valid())
+        self.assertFalse(Gate1Form({'fridge_check_date':'2027-02-30'},food=self.food).is_valid())
 
     def test_gate0_all_fields_optional_at_creation_and_submission(self):
         from .gate0 import Gate0Form,initial_brief
@@ -751,6 +818,119 @@ class DevelopmentTests(TestCase):
         self.assertEqual(response.json()['unit_cost'],'3999.00')
         self.assertNotIn('batch_units',response.json())
 
+    def test_gate2_cogs_status_matches_gate0_limit_and_is_derived(self):
+        import json
+        from .gate2 import Gate2Form,initial_brief
+        from .models import Gate0Brief,COGSComparisonPolicy
+        self.food.stage='gate2'; self.food.packaging=0; self.food.save()
+        line=self.food.lines.get()
+        line.quantity=Decimal('.1'); line.save()
+        brief=Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':'1000'}))
+        url='/food/%s/' % self.food.pk
+        for price,status,label in [('10000','Green','Ногоон'),('10000.10','Amber','Шар'),('10500','Amber','Шар'),('10500.10','Red','Улаан')]:
+            with self.subTest(status=status,price=price):
+                line.unit_price=Decimal(price); line.save()
+                page=self.client.get(url)
+                self.assertEqual(page.context['gate2form'].initial['cogs_status'],status)
+                self.assertEqual(page.context['gate2form'].initial['cogs_limit'],Decimal('1000'))
+                self.assertContains(page,'data-cogs-status="%s"' % status)
+                self.assertContains(page,'value="%s"' % label)
+                self.assertContains(page,'COGS төлөв:')
+        COGSComparisonPolicy.objects.create(amber_band_percent=10)
+        line.unit_price=Decimal('11000'); line.save()
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        self.assertEqual(self.client.post(url,{'action':'gate2_save','cogs_status':'Green','cogs_limit':'1','cogs_gap_percent':'0'}).status_code,302)
+        saved=initial_brief(self.food)
+        self.assertEqual(saved['cogs_status'],'Amber')
+        self.assertEqual(Decimal(saved['cogs_limit']),Decimal('1000'))
+        self.assertEqual(Decimal(saved['cogs_gap_percent']),Decimal('10'))
+        for gate in ['gate1','gate2']:
+            self.assertContains(self.client.get(url+'?gate='+gate),'value="Шар"')
+        brief.data='{}'; brief.save()
+        self.assertEqual(Gate2Form(food=self.food).initial['cogs_status'],'Хүлээгдэж байна')
+        self.assertContains(self.client.get(url),'data-cogs-status="Pending"')
+
+    def test_gate2_recipe_edits_update_cost_version_and_activity(self):
+        from .gate2 import initial_brief
+        self.food.stage='gate2'; self.food.recipe_version=3; self.food.save()
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        url='/food/%s/' % self.food.pk
+        page=self.client.get(url)
+        self.assertContains(page,'2.2 · Жорын COGS')
+        self.assertContains(page,'value="gate2_line_add"')
+        self.assertContains(page,'data-option-stage="gate2"')
+        self.assertNotContains(page,'value="gate1_line_add"')
+        line=self.food.lines.get()
+        response=self.client.post(url,{'action':'gate2_line_update','line':line.pk,'ingredient':self.ingredient.pk,'net_grams':'120','yield_factor':'.75','unit_price':'3000'})
+        self.assertEqual(response.status_code,302)
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.unit_cost,Decimal('580'))
+        self.assertEqual(self.food.recipe_version,4)
+        response=self.client.post(url,{'action':'gate2_line_add','ingredient':self.ingredient.pk,'net_grams':'80','yield_factor':'1','unit_price':'2000'})
+        self.assertEqual(response.status_code,302)
+        added=self.food.lines.exclude(pk=line.pk).get()
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.unit_cost,Decimal('740'))
+        self.assertEqual(self.food.recipe_version,5)
+        self.assertEqual(self.client.post(url,{'action':'gate2_packaging_save','packaging':'250'}).status_code,302)
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.unit_cost,Decimal('890'))
+        self.assertEqual(self.food.recipe_version,6)
+        self.assertEqual(self.client.post(url,{'action':'gate2_line_remove','line':added.pk}).status_code,302)
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.unit_cost,Decimal('730'))
+        self.assertEqual(self.food.recipe_version,7)
+        page=self.client.get(url)
+        self.assertEqual(page.context['gate2form'].initial['final_cogs_invoice_price'],'730')
+        self.assertEqual(page.context['gate2form'].initial['final_recipe_version'],7)
+        self.assertEqual(self.food.activities.filter(text__startswith='Gate 2').count(),4)
+        self.assertEqual(self.client.post(url,{'action':'gate2_save','final_cogs_invoice_price':'1','final_recipe_version':'999'}).status_code,302)
+        saved=initial_brief(self.food)
+        self.assertEqual(Decimal(saved['final_cogs_invoice_price']),Decimal('730'))
+        self.assertEqual(saved['final_recipe_version'],7)
+        self.assertEqual(self.client.get('/api/foods/%s/cost/' % self.food.pk).json()['unit_cost'],'730.00')
+
+    def test_gate2_recipe_edits_respect_permissions_validation_and_record_scope(self):
+        self.food.stage='gate2'; self.food.recipe_version=3; self.food.save()
+        url='/food/%s/' % self.food.pk
+        line=self.food.lines.get()
+        payloads=[{'action':'gate2_line_add','ingredient':self.ingredient.pk,'net_grams':'100'},
+                  {'action':'gate2_line_update','line':line.pk,'ingredient':self.ingredient.pk,'net_grams':'100'},
+                  {'action':'gate2_line_remove','line':line.pk},
+                  {'action':'gate2_packaging_save','packaging':'250'}]
+        for payload in payloads:
+            self.assertEqual(self.client.post(url,payload).status_code,403)
+        self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+        for changed in [{'net_grams':'-1'},{'yield_factor':'0'},{'unit_price':'-1'}]:
+            response=self.client.post(url,{**payloads[0],**changed})
+            self.assertEqual(response.status_code,200)
+            self.assertTrue(response.context['ingredient_form'].errors)
+            self.assertContains(response,'value="gate2_line_add"')
+        self.assertTrue(self.client.post(url,{'action':'gate2_packaging_save','packaging':'-1'}).context['packaging_form'].errors)
+        other=Food.objects.create(name='Other recipe',owner=self.user,stage='gate2')
+        other_line=RecipeLine.objects.create(food=other,ingredient=self.ingredient,quantity=1,unit_price=2000)
+        for payload in payloads[1:3]:
+            self.assertEqual(self.client.post(url,{**payload,'line':other_line.pk}).status_code,404)
+        for payload in payloads:
+            self.assertEqual(self.client.post(url+'?gate=gate1',payload).status_code,403)
+        for status in ['qa','manager','director']:
+            self.food.review_status=status; self.food.save()
+            for payload in payloads:
+                self.assertEqual(self.client.post(url,payload).status_code,403)
+            self.assertNotContains(self.client.get(url),'data-recipe-add')
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.recipe_version,3)
+        self.assertEqual(self.food.unit_cost,Decimal('20100'))
+        self.assertEqual(self.food.lines.count(),1)
+        other_line.refresh_from_db()
+        self.assertEqual(other_line.quantity,1)
+        self.assertFalse(self.food.activities.exists())
+        self.food.review_status='draft'; self.food.save()
+        for stage in ['gate0','gate1','launch','gate3']:
+            self.food.stage=stage; self.food.save()
+            for payload in payloads:
+                self.assertEqual(self.client.post(url,payload).status_code,403)
+
     def test_gate1_calculator_validation_and_permissions(self):
         self.food.stage='gate1'; self.food.save()
         url='/food/%s/' % self.food.pk
@@ -830,13 +1010,13 @@ class DevelopmentTests(TestCase):
         self.assertNotContains(self.client.get(url),'id_handover_pack_complete')
 
     def test_gate2_file_slots_and_review_lock(self):
-        from .gate2 import FILE_SLOTS
+        from .gate2 import available_file_slots
         self.food.stage='gate2'; self.food.save()
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         url='/food/%s/' % self.food.pk
         with tempfile.TemporaryDirectory() as media:
             with self.settings(MEDIA_ROOT=media):
-                for key,_ in FILE_SLOTS:
+                for key,_ in available_file_slots(self.food):
                     response=self.client.post(url,{'action':'slot_upload','slot':key,'slot_file':SimpleUploadedFile('report.pdf',b'report')})
                     self.assertEqual(response.status_code,302)
                     self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate2').count(),1)
@@ -857,6 +1037,50 @@ class DevelopmentTests(TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(b''.join(response.streaming_content),b'final costing')
                 response.close()
+
+    def test_gate2_isf_manual_visibility_upload_history_and_permissions(self):
+        from .gate0 import save_brief as save_gate0
+        save_gate0(self.food,{'category':'FF'})
+        self.food.stage='gate2'; self.food.save()
+        url='/food/%s/' % self.food.pk
+        page=self.client.get(url)
+        self.assertNotContains(page,'for="file-G2-F12"')
+        with tempfile.TemporaryDirectory() as media:
+            with self.settings(MEDIA_ROOT=media):
+                save_gate0(self.food,{'category':'ISF'})
+                # Gate 0's saved category is authoritative, even if the summary differs.
+                self.food.category='FF'; self.food.save()
+                payload={'action':'slot_upload','slot':'G2-F12'}
+                self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile('blocked.pdf',b'blocked')}).status_code,403)
+                self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+                page=self.client.get(url)
+                self.assertContains(page,'<span class="field-number">2.12</span> ISF Manual',html=True)
+                self.assertContains(page,'id="file-G2-F12"',count=1)
+                html=page.content.decode()
+                self.assertLess(html.index('id="id_launch_date_change_reason"'),html.index('id="file-G2-F12"'))
+                self.assertLess(html.index('id="file-G2-F12"'),html.index('value="gate2_save"'))
+                self.assertLess(html.index('id="file-G2-F12"'),html.index('class="gate0-file-slots"'))
+                for name,body in [('manual.pdf',b'first'),('manual-revised.pdf',b'revised')]:
+                    self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile(name,body)}).status_code,302)
+                activity=self.food.activities.get(attachment_name='manual-revised.pdf')
+                activity.full_clean()
+                self.assertEqual(activity.attachment_stage,'gate2')
+                page=self.client.get(url)
+                manual=next(slot for slot in page.context['gate2slots'] if slot['key']=='G2-F12')
+                self.assertEqual(len(manual['files']),2)
+                self.food.review_status='qa'; self.food.save()
+                self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile('locked.pdf',b'locked')}).status_code,403)
+                page=self.client.get(url)
+                self.assertContains(page,'manual-revised.pdf')
+                self.assertNotContains(page,'id="file-G2-F12"')
+                download=self.client.get('/attachments/%s/' % activity.pk)
+                self.assertEqual(b''.join(download.streaming_content),b'revised')
+                download.close()
+                self.food.review_status='draft'; self.food.save()
+                save_gate0(self.food,{'category':'FF'})
+                self.assertNotContains(self.client.get(url),'for="file-G2-F12"')
+                self.assertEqual(self.client.post(url,{**payload,'category':'ISF','slot_file':SimpleUploadedFile('wrong-category.pdf',b'wrong')}).status_code,403)
+                self.assertEqual(self.food.activities.filter(attachment_slot='G2-F12').count(),2)
 
     def test_gate2_fields_save_and_lock_for_ordered_review(self):
         from .gate2 import initial_brief
@@ -892,12 +1116,22 @@ class DevelopmentTests(TestCase):
                     self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate1').count(),1)
                 self.client.post(url,{'action':'slot_upload','slot':'G1-F9','slot_file':SimpleUploadedFile('revised.xlsx',b'new version')})
                 response=self.client.get(url)
-                self.assertEqual(len(response.context['gate1slots']),9)
-                self.assertEqual(len(response.context['gate1slots'][-1]['files']),2)
+                self.assertEqual(len(response.context['gate1slots']),10)
+                slots={slot['key']:slot for slot in response.context['gate1slots']}
+                self.assertEqual(len(slots['G1-F9']['files']),2)
+                self.assertEqual(len(slots['G1-F10']['files']),1)
+                self.assertContains(response,'<span class="field-number">1.10</span> Нэвтрүүлэлтийн маркетингийн санааны файл',html=True)
+                self.assertContains(response,'id="file-G1-F10"',count=1)
+                html=response.content.decode()
+                self.assertLess(html.index('id="id_marketing_brief"'),html.index('id="file-G1-F10"'))
+                self.assertLess(html.index('id="file-G1-F10"'),html.index('value="gate1_save"'))
+                self.assertLess(html.index('id="file-G1-F10"'),html.index('class="gate0-file-slots"'))
+                self.food.activities.get(attachment_slot='G1-F10').full_clean()
                 self.assertContains(response,'revised.xlsx')
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G0-F1','slot_file':SimpleUploadedFile('wrong.pdf',b'wrong gate')}).status_code,403)
                 self.food.review_status='qa'; self.food.save()
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G1-F1'}).status_code,403)
+                self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G1-F10','slot_file':SimpleUploadedFile('locked.pdf',b'locked')}).status_code,403)
                 self.user.groups.clear()
                 response=self.client.get(url)
                 self.assertContains(response,'evidence.xlsx')
@@ -1117,7 +1351,7 @@ class DevelopmentTests(TestCase):
         for gate,_ in STAGES:
             self.food.stage=gate; self.food.save()
             response=self.client.get('/food/%s/' % self.food.pk)
-            for name in (['selling_price','production_date'] if gate=='gate1' else ['batch_units','selling_price','production_date','ingredient']):
+            for name in (['batch_units','selling_price','production_date'] if gate in ['gate1','gate2'] else ['batch_units','selling_price','production_date','ingredient']):
                 self.assertNotContains(response,'name="%s"' % name)
             for action in ['launch_dates','add','remove','save']:
                 self.assertEqual(self.client.post('/food/%s/' % self.food.pk,{'action':action}).status_code,403)

@@ -2,6 +2,7 @@ from decimal import Decimal,InvalidOperation
 from django import forms
 from .models import PackagingType,COGSComparisonPolicy
 from .gate0_rows import RowsField
+from .cogs_widgets import COGSStatusWidget
 
 class MaterialRow(forms.Form):
     def __init__(self, *args, **kwargs):
@@ -10,10 +11,10 @@ class MaterialRow(forms.Form):
         apply_options(self, 'gate1', 'raw_material_spec_price_moq_second_source.')
 
     material=forms.CharField(label='Шинэ / өөрчлөгдсөн түүхий эд')
-    spec_written=forms.ChoiceField(label='Спец бичигдсэн эсэх',choices=[('','---------'),('yes','Тийм'),('no','Үгүй')])
+    spec_written=forms.ChoiceField(label='Техникийн тодорхойлолт бичигдсэн эсэх',choices=[('','---------'),('yes','Тийм'),('no','Үгүй')])
     price_kg=forms.DecimalField(label='Үнэ (₮ / кг)',min_value=0,max_digits=14,decimal_places=2)
     moq=forms.DecimalField(label='MOQ',min_value=0,max_digits=14,decimal_places=3)
-    second_source=forms.ChoiceField(label='2 дахь эх үүсвэр байгаа эсэх',choices=[('','---------'),('yes','Тийм'),('no','Үгүй')])
+    second_source=forms.ChoiceField(label='Нийлүүлэлтийн өөр эх үүсвэр байгаа эсэх',choices=[('','---------'),('yes','Тийм'),('no','Үгүй')])
 
 def cost_comparison(food,typed_cogs):
     from .gate0 import initial_brief
@@ -59,7 +60,7 @@ class Gate1Form(forms.Form):
             self.fields['recipe_version_internal_tasting'].disabled=True
         add('tasting_score','Дотоод амталгааны үнэлгээ (1–5)','1.1',num(1,5))
         add('taster_count','Амтлагчдын тоо (оруулбал 5-аас доошгүй)','1.1',forms.IntegerField(min_value=5))
-        add('consumer_test','Тестэд оролцсон хэрэглэгчдийн тоо','1.2',forms.IntegerField(min_value=1))
+        add('consumer_test','Туршилтанд оролцсон хэрэглэгчдийн тоо','1.2',forms.IntegerField(min_value=1))
         add('consumer_liking','Таалагдсан үнэлгээ (1–9)','1.2',num(1,9))
         add('consumer_would_buy_percent','Зорилтот үнээр худалдан авах хувь (%)','1.2',num(0,100))
         add('typed_cogs','COGS гараар оруулах (₮, заавал биш)','1.3',num())
@@ -69,21 +70,21 @@ class Gate1Form(forms.Form):
         for key,label in [('estimated_cogs_vs_limit','Тооцоолсон COGS (₮)'),('cogs_limit','Gate 0 COGS хязгаар (₮)'),('cogs_status','COGS төлөв'),('cogs_gap_percent','COGS зөрүү (%)'),('amber_band','Amber босго (%)'),('send_to_director','Merchandising Director руу шилжүүлэх эсэх'),('cogs_source','COGS эх үүсвэр')]:
             add(key,label,'1.3',forms.CharField(disabled=True))
             self.fields[key].widget.attrs['class']='costing-result'
-        self.fields['cogs_status'].help_text+=' Green: зөрүү ≤ 0%; Amber: босго хүртэл (анхдагч 5%); Red: босгоос их.'
+        for key in ['amber_band','send_to_director']:
+            self.fields[key].frontend_hidden=True
+        self.fields['cogs_status'].widget=COGSStatusWidget(attrs={'class':'costing-result'})
+        self.fields['cogs_status'].help_text+=' Ногоон: хязгаараас ихгүй; Шар: зөвшөөрөх босго хүртэл; Улаан: босгоос их.'
         add('cogs_reason','Amber / Red шалтгаан','1.3',text())
         add('cogs_action','Amber / Red үед авах арга хэмжээ','1.3',text())
         add('raw_material_spec_price_moq_second_source','Шинэ эсвэл өөрчлөгдсөн түүхий эд','1.4',RowsField(MaterialRow,required=False,complete=False))
         add('capacity_equipment_fit','Үйлдвэрлэлийн шугам','1.5',text())
         add('capacity_units_day','Хүчин чадал (ширхэг / өдөр)','1.5',num())
-        add('shift_count','Ээлжийн тоо','1.5',forms.IntegerField(min_value=0))
         add('capacity_constraint','Хязгаарлалт','1.5',enum([('cooling','Хөргөлт'),('packing','Савлагаа'),('space','Талбай'),('labour','Хөдөлмөр'),('other','Бусад')]))
         add('constraint_details','Хязгаарлалтын тайлбар','1.5',text())
-        for hour in [0,72]:
-            for key,label in [('texture','Бүтэц'),('taste','Амт'),('appearance','Гадаад байдал'),('water_release','Ус ялгаралт')]:
-                add('fridge_%s_%s'%(hour,key),'%s цаг · %s'%(hour,label),'1.6',text())
-            add('fridge_check_72h' if hour==72 else 'fridge_0_result','%s цаг · Шалгалтын үр дүн'%hour,'1.6',enum([('pass','Тэнцсэн'),('fail','Тэнцээгүй')]))
+        add('fridge_check_72h','72 цаг · Шалгалтын үр дүн','1.6',enum([('pass','Тэнцсэн'),('fail','Тэнцээгүй')]))
+        add('fridge_check_date','Шалгасан огноо','1.6',date())
         add('shelf_life_test_plan','Лаборатори','1.7',text())
-        add('shelf_life_test_days','Тестийн хугацаа (хоног)','1.7',forms.IntegerField(min_value=1))
+        add('shelf_life_test_days','Туршилтын хугацаа (хоног)','1.7',forms.IntegerField(min_value=1))
         add('shelf_life_result_due','Үр дүн гарах огноо','1.7',date())
         add('qa_requirements_issued','Хориглосон орцыг шалгасан эсэх','1.8',enum(yesno))
         add('process_flow_ccp_issued','Процессын урсгал ба CCP шаардлага гаргасан эсэх','1.8',enum(yesno))
@@ -92,9 +93,9 @@ class Gate1Form(forms.Form):
         add('pack_size','Савлагааны хэмжээ','1.9',text())
         add('pack_material','Савлагааны материал','1.9',text())
         add('material_certificate','Материалын гэрчилгээ байгаа эсэх','1.9',enum(yesno))
-        add('marketing_name','Маркетингийн нэр','1.10',text())
+        add('marketing_name','Кампанит ажлын нэр','1.10',text())
         add('marketing_key_message','Гол мессеж','1.10',text())
-        add('marketing_brief','Нэвтрүүлэх санаа','1.10',text())
+        add('marketing_brief','Нэвтрүүлэлтийн маркетингийн санаа','1.10',text())
         from .dropdown_options import apply_options
         apply_options(self, 'gate1')
         self.legacy_values=[]

@@ -13,7 +13,7 @@ from .workflow import context as gate_context, transition, GateAccessQuery, CATE
 from .forms import SupplierForm, IngredientForm, Gate1LineForm, Gate1PackagingForm
 from .gate0 import Gate0Form, initial_brief, save_brief, FILE_SLOTS, file_slots, save_slot_file
 from .gate1 import Gate1Form, initial_brief as initial_gate1, save_brief as save_gate1, FILE_SLOTS as GATE1_FILE_SLOTS, file_slots as gate1_file_slots, save_slot_file as save_gate1_file
-from .gate2 import Gate2Form, initial_brief as initial_gate2, save_brief as save_gate2, FILE_SLOTS as GATE2_FILE_SLOTS, file_slots as gate2_file_slots, save_slot_file as save_gate2_file
+from .gate2 import Gate2Form, initial_brief as initial_gate2, save_brief as save_gate2, FILE_SLOTS as GATE2_FILE_SLOTS, file_slots as gate2_file_slots, save_slot_file as save_gate2_file, available_file_slots as available_gate2_file_slots
 from .gate3 import Gate3Form, initial_brief as initial_gate3, save_brief as save_gate3, FILE_SLOTS as GATE3_FILE_SLOTS, file_slots as gate3_file_slots, save_slot_file as save_gate3_file
 from .gate3_typed import ROOT_CAUSES,LESSON_TAGS
 from .timing import record_transition,gate_timing
@@ -92,7 +92,7 @@ def detail(request,pk):
         if not viewing_current:
             rights={key:False for key in rights}
         editable = rights['editable']
-        ingredient_form = Gate1LineForm()
+        ingredient_form = Gate1LineForm(stage=view_stage)
         packaging_form = Gate1PackagingForm(instance=food)
         gate0form = Gate0Form(initial=initial_brief(food),food=food)
         gate1form = Gate1Form(initial=initial_gate1(food),food=food)
@@ -120,6 +120,7 @@ def detail(request,pk):
             if action == 'slot_upload':
                 if food.stage not in ['gate0','gate1','gate2','gate3'] or not editable: return HttpResponseForbidden('Энэ үе шатыг засах эрх шаардлагатай.')
                 slots,save_file = {'gate0':(FILE_SLOTS,save_slot_file),'gate1':(GATE1_FILE_SLOTS,save_gate1_file),'gate2':(GATE2_FILE_SLOTS,save_gate2_file),'gate3':(GATE3_FILE_SLOTS,save_gate3_file)}[food.stage]
+                if food.stage=='gate2': slots=available_gate2_file_slots(food)
                 key=request.POST.get('slot','')
                 if key not in dict(slots): return HttpResponseForbidden('Файлын талбар тохирохгүй байна.')
                 uploaded=request.FILES.get('slot_file')
@@ -151,28 +152,31 @@ def detail(request,pk):
                             attachment=uploaded,attachment_name=uploaded.name[:255],
                             attachment_stage='launch',attachment_slot=slot)
             elif not editable: return HttpResponseForbidden('Хөгжүүлэлт түгжигдсэн эсвэл өөр баг хариуцаж байна')
-            elif action == 'gate1_packaging_save':
-                if food.stage != 'gate1': return HttpResponseForbidden('Gate 1 only')
+            elif action in ['gate1_packaging_save','gate2_packaging_save']:
+                if food.stage not in ['gate1','gate2'] or action != food.stage+'_packaging_save':
+                    return HttpResponseForbidden('Савлагааны зардлыг зөвхөн тухайн Gate 1 эсвэл Gate 2-д засварлана.')
                 packaging_form=Gate1PackagingForm(request.POST,instance=food)
                 if not packaging_form.is_valid(): return render_page()
                 packaging_form.save()
                 food.recipe_version=(food.recipe_version or 0)+1
                 food.save(update_fields=['recipe_version','updated'])
-                Activity.objects.create(food=food,actor=request.user,text='Gate 1 / Packaging cost updated')
-            elif action in ['gate1_line_add','gate1_line_update','gate1_line_remove']:
-                if food.stage != 'gate1': return HttpResponseForbidden('Тооцооллыг зөвхөн Gate 1-д засварлана.')
-                if action == 'gate1_line_remove':
+                Activity.objects.create(food=food,actor=request.user,text=food.get_stage_display().split(' · ')[0]+' / Packaging cost updated')
+            elif action in ['gate1_line_add','gate1_line_update','gate1_line_remove','gate2_line_add','gate2_line_update','gate2_line_remove']:
+                if food.stage not in ['gate1','gate2'] or not action.startswith(food.stage+'_line_'):
+                    return HttpResponseForbidden('Тооцооллыг зөвхөн тухайн Gate 1 эсвэл Gate 2-д засварлана.')
+                stage_label=food.get_stage_display().split(' · ')[0]
+                if action.endswith('_line_remove'):
                     line=get_object_or_404(RecipeLine,pk=request.POST.get('line'),food=food)
-                    description='Gate 1 · Орц хасав: '+line.ingredient.name
+                    description=stage_label+' · Орц хасав: '+line.ingredient.name
                     line.delete()
                 else:
-                    line=get_object_or_404(RecipeLine,pk=request.POST.get('line'),food=food) if action == 'gate1_line_update' else None
-                    ingredient_form=Gate1LineForm(request.POST,instance=line)
+                    line=get_object_or_404(RecipeLine,pk=request.POST.get('line'),food=food) if action.endswith('_line_update') else None
+                    ingredient_form=Gate1LineForm(request.POST,instance=line,stage=food.stage)
                     if not ingredient_form.is_valid(): return render_page()
                     line=ingredient_form.save(commit=False)
                     line.food=food
                     line.save()
-                    description='Gate 1 · Орцын тооцоо хадгалав: %s · %s %s × ₮%s' % (line.ingredient.name,line.quantity,line.ingredient.unit,line.unit_price)
+                    description=stage_label+' · Орцын тооцоо хадгалав: %s · %s %s × ₮%s' % (line.ingredient.name,line.quantity,line.ingredient.unit,line.unit_price)
                 food.recipe_version=(food.recipe_version or 0)+1
                 food.save(update_fields=['updated','recipe_version'])
                 Activity.objects.create(food=food,actor=request.user,text=description)

@@ -111,11 +111,11 @@ Writes use CSRF-protected server-rendered forms. No external service credentials
 
 The process detail pages no longer show the legacy recipe/ingredients, unit-cost card, production/market-launch date panel or combined costing editor. Their write actions are retired. Existing database records are retained. Numeric cost APIs/exports remain legacy records and are not derived from the new free-text gate fields.
 
-## Gate 1 ingredient calculator
+## Gate 1 and Gate 2 ingredient calculator
 
-Gate 1 now has a dedicated calculator alongside its free-text fields and file slots. Gate 1 draft editors can add ingredient lines, update batch quantities and captured unit prices, remove lines, and save batch size, yield and per-unit packaging/labor/overhead. An omitted line price defaults to the ingredient catalog price. Existing lines retain their captured prices. Only Gate 1 exposes the calculator, and inputs lock during gate review. Ingredient and pricing changes are recorded in the activity log.
+The shared recipe calculator appears in Gate 1 section 1.3 and Gate 2 section 2.2. Draft editors for the current gate can add, update and remove ingredient lines and save per-unit packaging cost. Each line stores net grams per product, ingredient yield and its captured price per kg. An omitted line price defaults to the ingredient catalog price. Existing lines retain their captured prices. Every successful recipe or packaging save increments the recipe version and records the current gate in the activity log. Inputs lock during gate review, and browsing another gate is read-only.
 
-The calculated result is unit cost (COGS), not a recommended selling price. It does not automatically overwrite the free-text Gate 1 COGS comparison or add a gate approval rule. No ingredient requirement or automatic Red COGS routing is enforced. The formula is batch ingredient cost divided by sellable output (batch count times yield), plus per-unit costs. For 1 kg at 28,000 MNT producing one product at 100% yield, ingredient cost per product is 28,000 MNT.
+The calculated result is unit COGS: the sum of each line's net grams / 1000 / ingredient yield × price per kg, plus packaging per unit. Gate 2's final recipe version, final COGS and invoice-based margin calculations use the updated recipe. Derived values are recomputed server-side when the gate form is displayed or saved.
 
 ## Current Gate 1 formula (per product)
 

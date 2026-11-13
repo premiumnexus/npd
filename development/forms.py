@@ -57,6 +57,7 @@ class Gate1LineForm(MongolianModelForm):
         model=RecipeLine
         fields=['ingredient','net_grams','yield_factor','unit_price']
     def __init__(self,*args,**kwargs):
+        stage=kwargs.pop('stage','gate1')
         super().__init__(*args,**kwargs)
         self.fields['ingredient'].queryset=Ingredient.objects.filter(unit='kg')
         import json
@@ -66,7 +67,7 @@ class Gate1LineForm(MongolianModelForm):
         ingredient = self.fields['ingredient']
         ingredient.widget = AddableSelect(attrs=ingredient.widget.attrs, choices=ingredient.choices)
         ingredient.widget.attrs.update({'data-options-url': reverse('add_dropdown_option'),
-            'data-option-stage': 'gate1', 'data-option-field': 'recipe_ingredient'})
+            'data-option-stage': stage, 'data-option-field': 'recipe_ingredient'})
         self.fields['yield_factor'].required=False
         self.fields['unit_price'].required=False
         self.fields['net_grams'].label='Нэг бүтээгдэхүүнд орох цэвэр жин (г)'

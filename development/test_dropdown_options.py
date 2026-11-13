@@ -110,6 +110,21 @@ class SharedDropdownTests(TestCase):
         self.assertEqual(invalid.status_code, 400)
         self.assertFalse(Supplier.objects.filter(name='Invalid supplier').exists())
 
+    def test_gate2_recipe_ingredient_can_be_created_and_used_in_recipe(self):
+        from .models import Ingredient
+        self.food.stage='gate2'; self.food.save()
+        response=self.add(stage='gate2',field='recipe_ingredient',food=self.food.pk,
+                          label='Gate 2 ingredient',supplier='Gate 2 supplier',price='4500')
+        self.assertEqual(response.status_code,201)
+        ingredient=Ingredient.objects.get(pk=response.json()['value'])
+        result=self.client.post('/food/%s/' % self.food.pk,{'action':'gate2_line_add','ingredient':ingredient.pk,'net_grams':'100'})
+        self.assertEqual(result.status_code,302)
+        self.assertEqual(self.food.lines.get().unit_price,ingredient.price)
+        self.food.review_status='qa'; self.food.save()
+        self.assertEqual(self.add(stage='gate2',field='recipe_ingredient',food=self.food.pk,
+                                 label='Locked ingredient',supplier='Gate 2 supplier',price='4500').status_code,403)
+        self.assertFalse(Ingredient.objects.filter(name='Locked ingredient').exists())
+
     def test_added_option_remains_selected_after_food_is_saved(self):
         response = self.add(label='New occasion')
         result = self.client.post('/food/new/', {'product_name': 'Saved food', 'daypart': response.json()['value']})

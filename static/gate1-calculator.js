@@ -37,12 +37,30 @@ document.addEventListener('DOMContentLoaded',()=>{
     const pack=packaging?(packaging.validity.valid?Number(packaging.value):NaN):Number(root.querySelector('[data-packaging]').dataset.packaging);
     total+=pack;
     valid=valid && Number.isFinite(total);
+    if(rows.length===0){
+      const typed=root.querySelector('[name="typed_cogs"]');
+      const raw=typed?typed.value:root.dataset.typedCogs;
+      if(raw!==undefined && raw.trim()!==''){
+        total=Number(raw);
+        valid=Number.isFinite(total) && total>=0 && (!typed || typed.validity.valid);
+      }else{
+        valid=valid && pack>0;
+      }
+    }
     root.querySelector('[data-recipe-total]').textContent=valid?'₮'+total.toFixed(0):'—';
     const limit=Number(root.dataset.limit),band=Number(root.dataset.band);
     const gap=valid && limit>0?(total/limit-1)*100:null;
-    const status=gap===null?'—':gap<=0?'Green':gap<=band?'Amber':'Red';
+    const tolerance=Number.EPSILON*Math.max(1,Math.abs(total),Math.abs(limit))*8;
+    const status=gap===null?'Pending':total-limit<=tolerance?'Green':total-limit*(1+band/100)<=tolerance?'Amber':'Red';
+    const label={Green:'Ногоон',Amber:'Шар',Red:'Улаан',Pending:'Хүлээгдэж байна'}[status];
     root.querySelector('[data-recipe-gap]').textContent=gap===null?'—':gap.toFixed(1)+'%';
-    root.querySelector('[data-recipe-status]').textContent=status;
+    root.querySelectorAll('[data-recipe-status], [data-cogs-status-field]').forEach(element=>{
+      if(element.tagName==='INPUT') element.value=label;
+      else element.textContent=label;
+      element.dataset.cogsStatus=status;
+    });
+    const gapField=root.querySelector('[name="cogs_gap_percent"]');
+    if(gapField) gapField.value=gap===null?'':gap.toFixed(1);
     root.querySelector('[data-recipe-director]').textContent=gap===null?'—':status==='Red'?'Тийм':'Үгүй';
   };
   root.addEventListener('input',update);

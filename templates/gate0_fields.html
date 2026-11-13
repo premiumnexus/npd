@@ -1,11 +1,13 @@
 {% load gate_fields %}
+{% if not hide_form_messages %}
 {{ form.non_field_errors }}
 {% if form.legacy_values %}<div class="notice"><p>Өмнөх чөлөөт текстийг шинэ төрөлд тохируулна уу:</p>{% for label,value in form.legacy_values %}<p><strong>{{ label }}:</strong> {{ value }}</p>{% endfor %}</div>{% endif %}
+{% endif %}
 <div class="gate0-fields" data-option-food="{{ form.food.pk|default:'' }}">
-  {% for field in form %}
-  <div class="gate0-field {% if field.name == 'product_name' or field.name == 'category' or field.name == 'subcategory' %}identity-field{% endif %}">
+  {% for field in fields|default:form %}
+  <div class="gate0-field {% if field.name == 'product_name' or field.name == 'category' or field.name == 'subcategory' %}identity-field{% endif %}"{% if field.field.frontend_hidden %} hidden{% endif %}>
     <label for="{{ field.id_for_label }}"><span class="field-number">{{ field.field.gate_number }}</span> {{ field.label }}</label>
-    {% gate_widget field %}{{ field.errors }}
+    {% gate_widget field form_id %}{{ field.errors }}
     {% if field.name == 'evidence_level' %}<small id="{{ field.auto_id }}_reminder" class="field-reminder" data-evidence-reminder aria-live="polite"{% if field.value %} hidden{% endif %}>Төрөл сонгогдоогүй байна</small>{% endif %}
   </div>
   {% endfor %}

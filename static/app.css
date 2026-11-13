@@ -103,3 +103,13 @@ html[data-theme=dark] .gate-multiselect>summary{background:#29232f;border-color:
 .gate0-field .field-reminder{color:#b43f49}
 .gate0-field .field-reminder[hidden]{display:none}
 html[data-theme=dark] .gate0-field .field-reminder{color:#ff9ca5}
+[data-cogs-status]{--cogs-bg:#eceaf0;--cogs-ink:#595362}
+[data-cogs-status="Green"]{--cogs-bg:#e2f0d9;--cogs-ink:#24582e}
+[data-cogs-status="Amber"]{--cogs-bg:#fff0c2;--cogs-ink:#765000}
+[data-cogs-status="Red"]{--cogs-bg:#fde3e5;--cogs-ink:#922831}
+input[data-cogs-status]:disabled,[data-recipe-status][data-cogs-status],html[data-theme=dark] input[data-cogs-status]:disabled{background:var(--cogs-bg);color:var(--cogs-ink);font-weight:700;opacity:1}
+[data-recipe-status][data-cogs-status]{display:inline-flex;padding:5px 10px;border-radius:6px}
+html[data-theme=dark] [data-cogs-status]{--cogs-bg:#35303e;--cogs-ink:#d5cddd}
+html[data-theme=dark] [data-cogs-status="Green"]{--cogs-bg:#253e30;--cogs-ink:#b5e5bd}
+html[data-theme=dark] [data-cogs-status="Amber"]{--cogs-bg:#493b1e;--cogs-ink:#ffe19b}
+html[data-theme=dark] [data-cogs-status="Red"]{--cogs-bg:#4c2930;--cogs-ink:#ffb9c0}

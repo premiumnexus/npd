@@ -1,10 +1,17 @@
+{% load gate_fields %}
 <section class="panel padded">
   <h2>Gate 1 · Концепц ба жор</h2>
-  <form method="post">
+  {% include 'gate0_fields.html' with form=gate1form fields=gate1form|gate_sections:'1.1,1.2' form_id='gate1-brief-form' %}
+</section>
+{% include 'gate1_calculator.html' with cogs_fields=gate1form|gate_sections:'1.3' %}
+<section class="panel padded">
+  <form method="post" id="gate1-brief-form">
     {% csrf_token %}
-    {% include 'gate0_fields.html' with form=gate1form %}
-    {% if editable %}<button class="button" name="action" value="gate1_save">Хадгалах</button>{% endif %}
+    {% include 'gate0_fields.html' with form=gate1form fields=gate1form|gate_sections:'1.4,1.5,1.6,1.7,1.8,1.9,1.10' hide_form_messages=True %}
   </form>
+  {% for slot in gate1slots %}
+    {% if slot.inline %}{% include 'gate_file_slot.html' %}{% endif %}
+  {% endfor %}
+  {% if editable %}<button class="button" form="gate1-brief-form" name="action" value="gate1_save">Хадгалах</button>{% endif %}
   {% include 'gate0_file_slots.html' with gate0slots=gate1slots %}
 </section>
-{% include 'gate1_calculator.html' %}

@@ -40,7 +40,7 @@ def add_dropdown_option(request):
         stage == 'gate0' and (request.user.is_superuser or GateAccessQuery(request.user, stage, 'can_submit')))
     if not permitted:
         return JsonResponse({'error': 'Энэ үе шатыг засах эрх шаардлагатай.'}, status=403)
-    if stage == 'gate1' and key == 'recipe_ingredient':
+    if stage in ['gate1','gate2'] and key == 'recipe_ingredient':
         supplier_name = data.get('supplier', '')
         try:
             if not isinstance(supplier_name, str): raise ValueError()
