@@ -1,6 +1,5 @@
 """Gate 0 brief: free-text fields until data types and rules are agreed."""
 from django import forms
-import json
 
 FIELDS = [
     ('0.1','product_name','Бүтээгдэхүүний нэр'),
@@ -47,22 +46,24 @@ def save_slot_file(food,user,key,uploaded):
 from .gate0_typed import Gate0Form
 
 def initial_brief(food):
-    from .models import Gate0Brief
-    saved = Gate0Brief.objects.filter(food=food).first()
-    return json.loads(saved.data) if saved else {'product_name':food.name,'category':food.category}
-
-def save_brief(food,data):
-    from .models import Gate0Brief
-    previous=initial_brief(food)
-    payload=dict(data)
+    from .gate_storage import read_gate, serialize
     from .target_costing import calculate
+    data=read_gate(0,food)
+    if any(data.get(key) is not None for key in ['target_shelf_price','cu_margin','vendor_rebate','vendor_margin']):
+        data.update({key:serialize(value) for key,value in calculate(data,data.get('vat_percent')).items()})
+    return data
+
+
+from django.db import transaction
+
+@transaction.atomic
+def save_brief(food,data):
+    from .gate_storage import save_gate
+    from .target_costing import calculate
+    payload=dict(data)
     payload.update(calculate(data))
-    payload['_schema_version']=2
-    if previous.get('_schema_version') != 2:
-        payload['_legacy_free_text']=previous
-    elif previous.get('_legacy_free_text'):
-        payload['_legacy_free_text']=previous['_legacy_free_text']
-    Gate0Brief.objects.update_or_create(food=food,defaults={'data':json.dumps(payload,ensure_ascii=False,default=str)})
-    food.name = (data.get('product_name') or 'Нэргүй бүтээгдэхүүн')[:160]
-    food.category = data.get('category','')[:80]
+    record=save_gate(0,food,payload)
+    food.name=(data.get('product_name') or 'Нэргүй бүтээгдэхүүн')[:160]
+    food.category=(data.get('category') or '')[:80]
     food.save(update_fields=['name','category','updated'])
+    return record

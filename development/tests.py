@@ -115,14 +115,14 @@ class DevelopmentTests(TestCase):
         self.assertIsNone(form.cleaned_data['implied_vendor_margin_percent'])
 
     def test_gate1_official_recipe_example_and_red_approval_route(self):
-        from .models import Gate0Brief
+        from .models import Gate0
         from .gate1_typed import cost_comparison
         from .workflow import transition
         import json
         from decimal import ROUND_HALF_UP
         self.food.lines.all().delete()
         self.food.stage='gate1';self.food.packaging=350;self.food.save()
-        Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':str(Decimal(9000)/Decimal('1.1')*Decimal('.7')*Decimal('.98')*Decimal('.85'))}))
+        Gate0.objects.create(development=self.food,cogs_limit=Decimal(9000)/Decimal('1.1')*Decimal('.7')*Decimal('.98')*Decimal('.85'))
         for grams,yield_factor,price,expected in [(200,'1',4000,800),(120,'.7',16000,2743),(60,'.85',5000,353),(30,'1',8000,240)]:
             line=RecipeLine.objects.create(food=self.food,ingredient=self.ingredient,quantity=Decimal(grams)/1000,yield_factor=Decimal(yield_factor),unit_price=price)
             self.assertEqual(line.cost.quantize(Decimal(1),rounding=ROUND_HALF_UP),expected)
@@ -141,7 +141,7 @@ class DevelopmentTests(TestCase):
     def test_gate1_grams_yield_packaging_validation_and_boundaries(self):
         from .forms import Gate1LineForm
         from .gate1_typed import cost_comparison
-        from .models import Gate0Brief
+        from .models import Gate0
         import json
         for value in ['0','.009','1.01','-1']:
             form=Gate1LineForm({'ingredient':self.ingredient.pk,'net_grams':'120','yield_factor':value})
@@ -152,7 +152,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(line.quantity,Decimal('.12'))
         self.assertEqual(line.cost,Decimal('.12')/Decimal('.7')*16000)
         self.food.lines.all().delete()
-        Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':'1000'}))
+        Gate0.objects.create(development=self.food,cogs_limit=1000)
         for amount,status in [('1000','Green'),('1000.01','Amber'),('1050','Amber'),('1050.01','Red')]:
             self.assertEqual(cost_comparison(self.food,amount)['cogs_status'],status)
         self.food.stage='gate1';self.food.save()
@@ -786,9 +786,9 @@ class DevelopmentTests(TestCase):
 
     def test_gate1_cogs_uses_editor_or_manual_and_configured_status_thresholds(self):
         from .gate1 import Gate1Form
-        from .models import Gate0Brief,COGSComparisonPolicy
+        from .models import Gate0,COGSComparisonPolicy
         import json
-        Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':'20000'}))
+        Gate0.objects.create(development=self.food,cogs_limit=20000)
         form=Gate1Form({},food=self.food)
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data['estimated_cogs_vs_limit'],20100)
@@ -930,16 +930,17 @@ class DevelopmentTests(TestCase):
         self.assertIn('subcategory',form.errors)
 
     def test_gate0_preserves_legacy_free_text_during_conversion(self):
-        from .models import Gate0Brief
+        from .models import Gate0
         from .gate0 import Gate0Form,initial_brief,save_brief
         import json
-        Gate0Brief.objects.create(food=self.food,data=json.dumps({'product_name':'Old name','cu_margin':'TBD','competitor_benchmark':'Old competitor notes'}))
+        from .gate_storage import save_gate
+        save_gate(0,self.food,{'product_name':'Old name','cu_margin':'TBD','competitor_benchmark':'Old competitor notes'})
         form=Gate0Form(initial=initial_brief(self.food),food=self.food)
         self.assertTrue(form.legacy_values)
         save_brief(self.food,valid_gate0())
         data=initial_brief(self.food)
         self.assertEqual(data['_legacy_free_text']['competitor_benchmark'],'Old competitor notes')
-        self.assertEqual(data['cu_margin'],'30.0')
+        self.assertEqual(Decimal(data['cu_margin']),Decimal('30.0'))
 
     def test_recipes_lists_launched_products_and_expands_ingredients(self):
         self.food.stage='launch'; self.food.save()
@@ -1008,11 +1009,11 @@ class DevelopmentTests(TestCase):
     def test_gate2_cogs_status_matches_gate0_limit_and_is_derived(self):
         import json
         from .gate2 import Gate2Form,initial_brief
-        from .models import Gate0Brief,COGSComparisonPolicy
+        from .models import Gate0,COGSComparisonPolicy
         self.food.stage='gate2'; self.food.packaging=0; self.food.save()
         line=self.food.lines.get()
         line.quantity=Decimal('.1'); line.save()
-        brief=Gate0Brief.objects.create(food=self.food,data=json.dumps({'cogs_limit':'1000'}))
+        brief=Gate0.objects.create(development=self.food,cogs_limit=1000)
         url='/food/%s/' % self.food.pk
         for price,status,label in [('10000','Green','Ногоон'),('10000.10','Amber','Шар'),('10500','Amber','Шар'),('10500.10','Red','Улаан')]:
             with self.subTest(status=status,price=price):
@@ -1033,7 +1034,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(Decimal(saved['cogs_gap_percent']),Decimal('10'))
         for gate in ['gate1','gate2']:
             self.assertContains(self.client.get(url+'?gate='+gate),'value="Шар"')
-        brief.data='{}'; brief.save()
+        brief.cogs_limit=None; brief.save(update_fields=['cogs_limit'])
         self.assertEqual(Gate2Form(food=self.food).initial['cogs_status'],'Хүлээгдэж байна')
         self.assertContains(self.client.get(url),'data-cogs-status="Pending"')
 
@@ -1209,8 +1210,9 @@ class DevelopmentTests(TestCase):
                     self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate2').count(),1)
                 self.client.post(url,{'action':'slot_upload','slot':'G2-F11','slot_file':SimpleUploadedFile('final.xlsx',b'final costing')})
                 response=self.client.get(url)
-                self.assertEqual(len(response.context['gate2slots']),11)
-                self.assertEqual(len(response.context['gate2slots'][-1]['files']),2)
+                self.assertEqual(len(response.context['gate2slots']),12)
+                costing=next(slot for slot in response.context['gate2slots'] if slot['key']=='G2-F11')
+                self.assertEqual(len(costing['files']),2)
                 self.assertContains(response,'final.xlsx')
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G1-F1'}).status_code,403)
                 self.client.post(url,{'action':'submit'})
@@ -1224,6 +1226,43 @@ class DevelopmentTests(TestCase):
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(b''.join(response.streaming_content),b'final costing')
                 response.close()
+
+    def test_gate2_quality_standard_replaces_text_and_is_available_in_launch(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.food.stage='gate2'; self.food.save()
+        url='/food/%s/' % self.food.pk
+        payload={'action':'slot_upload','slot':'G2-F13'}
+        with tempfile.TemporaryDirectory() as media,self.settings(MEDIA_ROOT=media):
+            self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile('blocked.pdf',b'blocked')}).status_code,403)
+            self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
+            page=self.client.get(url)
+            self.assertContains(page,'<span class="field-number">2.10</span> Чанарын стандарт',html=True)
+            self.assertContains(page,'id="file-G2-F13"',count=1)
+            for key in ['quality_texture_target','quality_texture_range','quality_taste_target','quality_taste_range']:
+                self.assertNotIn(key,page.context['gate2form'].fields)
+                self.assertNotContains(page,'name="%s"' % key)
+            html=page.content.decode()
+            self.assertLess(html.index('id="id_quality_weight_max"'),html.index('id="file-G2-F13"'))
+            self.assertLess(html.index('id="file-G2-F13"'),html.index('id="id_day45_target_confirmed"'))
+            for name,body in [('standard.pdf',b'first'),('standard-v2.pdf',b'revised')]:
+                self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile(name,body)}).status_code,302)
+            activity=self.food.activities.get(attachment_name='standard-v2.pdf')
+            activity.full_clean()
+            self.food.review_status='qa'; self.food.save()
+            self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile('locked.pdf',b'locked')}).status_code,403)
+            self.assertNotContains(self.client.get(url),'id="file-G2-F13"')
+            self.food.stage='launch'; self.food.review_status='draft'; self.food.launched_at=timezone.now()-timedelta(days=15); self.food.save()
+            self.user.groups.add(Group.objects.get(name='Food Science'))
+            page=self.client.get(url)
+            self.assertTrue(all(len(card['quality_standards'])==2 for card in page.context['checkpoint_cards']))
+            self.assertContains(page,'standard-v2.pdf')
+            self.assertNotContains(page,'Бүтцийн зорилт / хүрээ')
+            self.assertNotContains(page,'Амтын зорилт / хүрээ')
+            self.assertContains(page,'type="file"',count=2)
+            download=self.client.get('/attachments/%s/' % activity.pk)
+            self.assertEqual(b''.join(download.streaming_content),b'revised')
+            download.close()
 
     def test_gate2_isf_manual_visibility_upload_history_and_permissions(self):
         from .gate0 import save_brief as save_gate0

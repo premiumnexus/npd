@@ -2,6 +2,10 @@
 
 A working Django application for taking CU food ideas through development and calculating the finished cost per unit in MNT.
 
+## Database structure
+
+Each development has one permanent `Food.id`. Gate 0–3 use separate typed tables, each keyed by that same `development_id`. Product names, categories, dates and numeric inputs are individual columns; selections and repeating rows use linked tables. Existing JSON payloads are retained only in a read-only migration archive. See [the database guide](docs/database.md) for the schema, relationships and SQL examples.
+
 ## Run the local demo (PowerShell)
 
 ```powershell

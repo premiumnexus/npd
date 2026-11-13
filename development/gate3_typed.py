@@ -45,7 +45,7 @@ def derived_values(food,data):
     flags={
         'handover_final_cogs':has_cogs or 'G2-F11' in slots,
         'handover_technology_document':bool(launch.get('final_technology_transfer_document')) or 'G2-F5' in slots,
-        'handover_label':launch.get('label_checked')=='yes' or bool(launch.get('label_check')) or 'G2-F7' in slots,
+        'handover_label':launch.get('label_checked')=='yes' or bool((launch.get('_legacy_free_text') or {}).get('label_check')) or 'G2-F7' in slots,
         'handover_marketing_plan':bool(launch.get('marketing_plan')) or 'G2-F9' in slots,
     }
     result.update({key:'yes' if value else 'no' for key,value in flags.items()})

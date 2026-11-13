@@ -119,10 +119,6 @@ class Gate2Form(forms.Form):
         add('quality_tolerance_baseline','Жингийн зорилт (г)','2.10',number(0,None,3))
         add('quality_weight_min','Жингийн доод хязгаар (г)','2.10',number(0,None,3))
         add('quality_weight_max','Жингийн дээд хязгаар (г)','2.10',number(0,None,3))
-        add('quality_texture_target','Бүтцийн зорилт','2.10',text())
-        add('quality_texture_range','Бүтцийн зөвшөөрөх хүрээ','2.10',text())
-        add('quality_taste_target','Амтын зорилт','2.10',text())
-        add('quality_taste_range','Амтын зөвшөөрөх хүрээ','2.10',text())
         day45_choices=[('same','Gate 0-ийн зорилт хэвээр'),('changed','Өөрчилсөн')]
         add('day45_target_confirmed','Gate 0-ийн зорилт хэвээр / Өөрчилсөн','2.11',forms.ChoiceField(choices=day45_choices))
         add('day45_units_store_day','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','2.11',number())

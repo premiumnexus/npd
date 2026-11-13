@@ -1,5 +1,4 @@
 """Gate 1 inputs, with data types and validation to be agreed later."""
-import json
 from django import forms
 
 FIELDS = [
@@ -39,15 +38,13 @@ def save_slot_file(food,user,key,uploaded):
 from .gate1_typed import Gate1Form
 
 def initial_brief(food):
-    from .models import Gate1Brief
-    brief=Gate1Brief.objects.filter(food=food).first()
-    return json.loads(brief.data) if brief else {}
+    from .gate_storage import read_gate, serialize
+    data=read_gate(1,food)
+    from .gate1_typed import cost_comparison
+    data.update({key:serialize(value) for key,value in cost_comparison(food,data.get('typed_cogs')).items()})
+    return data
+
 
 def save_brief(food,data):
-    from .models import Gate1Brief
-    previous=initial_brief(food)
-    payload=dict(data)
-    payload['_schema_version']=2
-    if previous.get('_schema_version') != 2: payload['_legacy_free_text']=previous
-    elif previous.get('_legacy_free_text'): payload['_legacy_free_text']=previous['_legacy_free_text']
-    Gate1Brief.objects.update_or_create(food=food,defaults={'data':json.dumps(payload,ensure_ascii=False,default=str)})
+    from .gate_storage import save_gate
+    return save_gate(1,food,data)

@@ -117,6 +117,7 @@ def checkpoint_cards(user,food,now=None):
     dates=schedule(food,now)
     baseline=initial_brief(food)
     uploads=list(food.activities.filter(attachment_stage='launch').exclude(attachment=''))
+    standards=list(food.activities.filter(attachment_stage='gate2',attachment_slot='G2-F13').exclude(attachment=''))
     cards=[]
     for day in [7,14]:
         editable=can_edit_checkpoint(user,food,day,now)
@@ -124,7 +125,7 @@ def checkpoint_cards(user,food,now=None):
         fields=[{'field':form[key], 'files':[item for item in uploads if item.attachment_slot==slot]}
                 for slot,key,label in checkpoint_slots(day)]
         cards.append({'day':day,'editable':editable,'due':dates['day%s_at'%day],
-                      'unlocked':dates['day%s_open'%day],'form':form,'upload_fields':fields,'baseline':baseline})
+                      'unlocked':dates['day%s_open'%day],'form':form,'upload_fields':fields,'baseline':baseline,'quality_standards':standards})
     return cards
 
 def open_gate3_if_due(food,now=None):

@@ -19,10 +19,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       invoice.addEventListener('input',updateMargins);
       updateMargins();
     }
-    const mode=form.querySelector('[name="day45_target_confirmed"]');
+    const mode=form.elements.namedItem('day45_target_confirmed');
     if(mode){
-      const targets=['day45_units_store_day','day45_writeoff_percent','day45_margin_percent'].map(name=>form.querySelector(`[name="${name}"]`));
-      const reason=form.querySelector('[name="day45_change_reason"]');
+      const targets=['day45_units_store_day','day45_writeoff_percent','day45_margin_percent'].map(name=>form.elements.namedItem(name));
+      const reason=form.elements.namedItem('day45_change_reason');
       const reasonWrapper=reason?.closest('.gate0-field');
       let previousMode=mode.value;
       const updateTargets=()=>{

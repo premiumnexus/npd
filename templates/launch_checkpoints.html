@@ -12,7 +12,7 @@
   {% if checkpoint.due %}<p>Шалгалт бүртгэх эрх нээгдэх: <strong>{{ checkpoint.due|date:'Y-m-d H:i' }}</strong></p>{% endif %}
   {% if not checkpoint.unlocked %}<div class="notice">Хугацаа болоогүй тул зөвхөн харах боломжтой.</div>{% elif not checkpoint.editable %}<p>Зөвхөн харах боломжтой.</p>{% endif %}
   <details class="checkpoint-baseline"><summary>Gate 2 (2.10) · Харьцуулах чанарын шалгуур</summary>
-    <dl><dt>Зорилтот жин</dt><dd>{{ checkpoint.baseline.quality_tolerance_baseline|default:'—' }} г</dd><dt>Жингийн зөвшөөрөх хүрээ</dt><dd>{{ checkpoint.baseline.quality_weight_min|default:'—' }} – {{ checkpoint.baseline.quality_weight_max|default:'—' }} г</dd><dt>Бүтцийн зорилт / хүрээ</dt><dd>{{ checkpoint.baseline.quality_texture_target|default:'—' }} / {{ checkpoint.baseline.quality_texture_range|default:'—' }}</dd><dt>Амтын зорилт / хүрээ</dt><dd>{{ checkpoint.baseline.quality_taste_target|default:'—' }} / {{ checkpoint.baseline.quality_taste_range|default:'—' }}</dd></dl>
+    <dl><dt>Зорилтот жин</dt><dd>{{ checkpoint.baseline.quality_tolerance_baseline|default:'—' }} г</dd><dt>Жингийн зөвшөөрөх хүрээ</dt><dd>{{ checkpoint.baseline.quality_weight_min|default:'—' }} – {{ checkpoint.baseline.quality_weight_max|default:'—' }} г</dd><dt>Чанарын стандарт</dt><dd>{% for item in checkpoint.quality_standards %}<a class="attachment-link" href="{% url 'download_attachment' item.pk %}">{{ item.attachment_name }}</a>{% empty %}—{% endfor %}</dd></dl>
   </details>
   <form method="post" enctype="multipart/form-data" class="gate0-fields" data-launch-checkpoint data-editable="{{ checkpoint.editable|yesno:'true,false' }}">
     {% csrf_token %}<input type="hidden" name="day" value="{{ checkpoint.day }}">

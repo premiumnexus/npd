@@ -1,5 +1,4 @@
 import csv
-import json
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
@@ -25,16 +24,17 @@ def allowed(user, role):
 
 @login_required
 def lessons(request):
-    from .models import Gate3Brief
+    from .models import Gate3
+    from .gate_storage import read_record
     records=[]
-    for brief in Gate3Brief.objects.select_related('food').order_by('-food__updated'):
-        data=json.loads(brief.data)
+    for brief in Gate3.objects.select_related('development').order_by('-development__updated'):
+        data=read_record(3,brief)
         lesson=(data.get('lesson_card') or '').strip()
         stop=(data.get('lesson_stop') or '').strip()
         change=(data.get('lesson_change') or '').strip()
         if lesson or stop or change:
             cause=data.get('root_cause','')
-            records.append({'food':brief.food,'lesson':lesson,'stop':stop,'change':change,'root_cause':dict(ROOT_CAUSES).get(cause,cause),'evidence':data.get('root_cause_evidence',''),'tags':[dict(LESSON_TAGS).get(tag,tag) for tag in data.get('lesson_tags',[])]})
+            records.append({'food':brief.development,'lesson':lesson,'stop':stop,'change':change,'root_cause':dict(ROOT_CAUSES).get(cause,cause),'evidence':data.get('root_cause_evidence',''),'tags':[dict(LESSON_TAGS).get(tag,tag) for tag in data.get('lesson_tags',[])]})
     return render(request,'lessons.html',{'lessons':records})
 
 @login_required
@@ -68,6 +68,8 @@ def create_food(request):
         with transaction.atomic():
             food = Food.objects.create(name='Нэргүй бүтээгдэхүүн',owner=request.user)
             save_brief(food,form.cleaned_data)
+            from .gate_storage import ensure_gate_rows
+            ensure_gate_rows(food)
             for key,_ in FILE_SLOTS:
                 uploaded=request.FILES.get(key)
                 if uploaded and uploaded.size: save_slot_file(food,request.user,key,uploaded)

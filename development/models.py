@@ -137,38 +137,6 @@ class Food(models.Model):
         return self.role
     def __str__(self): return self.name
 
-class Gate0Brief(models.Model):
-    food = models.OneToOneField(Food,on_delete=models.CASCADE,related_name='gate0_brief')
-    data = models.TextField(default='{}',blank=True)
-    class Meta:
-        verbose_name = 'Gate 0 танилцуулга'
-        verbose_name_plural = 'Gate 0 танилцуулгууд'
-    def __str__(self): return str(self.food)
-
-class Gate1Brief(models.Model):
-    food = models.OneToOneField(Food,on_delete=models.CASCADE,related_name='gate1_brief')
-    data = models.TextField(default='{}',blank=True)
-    class Meta:
-        verbose_name = 'Gate 1 мэдээлэл'
-        verbose_name_plural = 'Gate 1 мэдээлэл'
-    def __str__(self): return str(self.food)
-
-class Gate2Brief(models.Model):
-    food = models.OneToOneField(Food,on_delete=models.CASCADE,related_name='gate2_brief')
-    data = models.TextField(default='{}',blank=True)
-    class Meta:
-        verbose_name = 'Gate 2 мэдээлэл'
-        verbose_name_plural = 'Gate 2 мэдээлэл'
-    def __str__(self): return str(self.food)
-
-class Gate3Brief(models.Model):
-    food = models.OneToOneField(Food,on_delete=models.CASCADE,related_name='gate3_brief')
-    data = models.TextField(default='{}',blank=True)
-    class Meta:
-        verbose_name = 'Gate 3 мэдээлэл'
-        verbose_name_plural = 'Gate 3 мэдээлэл'
-    def __str__(self): return str(self.food)
-
 class LaunchCheckpoint(models.Model):
     food=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='launch_checkpoints')
     day=models.PositiveSmallIntegerField('Өдөр',choices=[(7,'Day 7'),(14,'Day 14')])
@@ -210,7 +178,7 @@ class Activity(models.Model):
     attachment = models.FileField(upload_to=activity_upload_path,blank=True)
     attachment_name = models.CharField(max_length=255,blank=True)
     attachment_stage = models.CharField(max_length=20,choices=STAGES,blank=True)
-    attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,11)]+['G2-F%s' % number for number in range(1,13)]+['G3-F%s' % number for number in range(1,4)]+['L%sF%s' % (day,number) for day in [7,14] for number in range(1,9 if day==7 else 11)]])
+    attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,11)]+['G2-F%s' % number for number in range(1,14)]+['G3-F%s' % number for number in range(1,4)]+['L%sF%s' % (day,number) for day in [7,14] for number in range(1,9 if day==7 else 11)]])
     created = models.DateTimeField(auto_now_add=True)
     class Meta: ordering = ['-created']
 
@@ -229,3 +197,10 @@ class GateTransition(models.Model):
         ordering=['occurred_at','pk']
         verbose_name='Үе шатны шилжилт'
         verbose_name_plural='Үе шатны шилжилтийн түүх'
+
+
+from .gate_models import (
+    Gate0, Gate1, Gate2, Gate3, GateDataArchive,
+    Gate0ImprovementReason, Gate0Daypart, Gate0Allergen, Gate0HighRiskInput,
+    Gate3LessonTag, Gate0Competitor, Gate0AnalogSKU, Gate0Cannibalisation, Gate1Material,
+)

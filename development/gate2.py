@@ -1,5 +1,4 @@
 """Gate 2 inputs; data types and business rules will be defined later."""
-import json
 from django import forms
 
 FIELDS = [
@@ -30,6 +29,7 @@ FILE_SLOTS = [
     ('G2-F10','Хуваарилалтын төлөвлөгөө'),
     ('G2-F11','COGS эцсийн тооцоо (Excel)'),
     ('G2-F12','ISF Manual'),
+    ('G2-F13','Чанарын стандарт'),
 ]
 
 def available_file_slots(food):
@@ -40,7 +40,8 @@ def available_file_slots(food):
 
 def file_slots(food):
     files=list(food.activities.filter(attachment_stage='gate2').exclude(attachment_slot=''))
-    return [{'key':key,'label':label,'number':'2.12' if key=='G2-F12' else key,'inline':key=='G2-F12','files':[item for item in files if item.attachment_slot==key]} for key,label in available_file_slots(food)]
+    inline_numbers={'G2-F12':'2.12','G2-F13':'2.10'}
+    return [{'key':key,'label':label,'number':inline_numbers.get(key,key),'inline':key in inline_numbers,'files':[item for item in files if item.attachment_slot==key]} for key,label in available_file_slots(food)]
 
 def save_slot_file(food,user,key,uploaded):
     from .models import Activity
@@ -49,15 +50,13 @@ def save_slot_file(food,user,key,uploaded):
 from .gate2_typed import Gate2Form
 
 def initial_brief(food):
-    from .models import Gate2Brief
-    brief=Gate2Brief.objects.filter(food=food).first()
-    return json.loads(brief.data) if brief else {}
+    from .gate_storage import read_gate, serialize
+    data=read_gate(2,food)
+    from .gate2_typed import derived_values
+    data.update({key:serialize(value) for key,value in derived_values(food,None,data.get('launch_date'),data.get('vendor_invoice_price')).items()})
+    return data
+
 
 def save_brief(food,data):
-    from .models import Gate2Brief
-    previous=initial_brief(food)
-    payload=dict(data)
-    payload['_schema_version']=2
-    if previous.get('_schema_version') != 2: payload['_legacy_free_text']=previous
-    elif previous.get('_legacy_free_text'): payload['_legacy_free_text']=previous['_legacy_free_text']
-    Gate2Brief.objects.update_or_create(food=food,defaults={'data':json.dumps(payload,ensure_ascii=False,default=str)})
+    from .gate_storage import save_gate
+    return save_gate(2,food,data)
