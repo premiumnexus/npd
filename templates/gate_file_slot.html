@@ -1,7 +1,7 @@
 <div class="gate0-file-slot">
   <label for="file-{{ slot.key }}"><span class="field-number">{{ slot.number|default:slot.key }}</span> {{ slot.label }}</label>
   {% for item in slot.files %}
-    <a class="attachment-link" href="{% url 'download_attachment' item.pk %}">{{ item.attachment_name }}</a>
+    <a class="attachment-link" href="{% if item.download_url %}{{ item.download_url }}{% else %}{% url 'download_attachment' item.pk %}{% endif %}">{{ item.attachment_name }}</a>
     <small>{{ item.actor }} · {{ item.created|date:'Y-m-d H:i' }}</small>
   {% empty %}{% if not creating %}<small>Файл хавсаргаагүй байна.</small>{% endif %}{% endfor %}
   {% if creating %}

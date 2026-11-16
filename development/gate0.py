@@ -36,12 +36,17 @@ FILE_SLOTS = [
 ]
 
 def file_slots(food=None):
-    files = list(food.activities.exclude(attachment_slot='')) if food else []
-    return [{'key':key,'label':label,'files':[item for item in files if item.attachment_slot==key]} for key,label in FILE_SLOTS]
+    files = list(food.gate0_files.select_related('uploader')) if food else []
+    return [{'key':key,'label':label,'files':[item for item in files if item.slot_code==key]} for key,label in FILE_SLOTS]
 
 def save_slot_file(food,user,key,uploaded):
-    from .models import Activity
-    Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,dict(FILE_SLOTS)[key]),attachment=uploaded,attachment_name=uploaded.name[:255],attachment_stage='gate0',attachment_slot=key)
+    from .models import Activity,Gate0File
+    from django.db import transaction
+    label=dict(FILE_SLOTS)[key]
+    with transaction.atomic():
+        activity=Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,label))
+        return Gate0File.objects.create(development=food,slot_code=key,file=uploaded,
+            original_filename=uploaded.name[:255],uploader=user,uploaded_at=activity.created,activity=activity)
 
 from .gate0_typed import Gate0Form
 

@@ -18,6 +18,12 @@ Gate values have individual columns. Dates use date columns; counts use integer 
 
 Draft records may be incomplete. Optional numeric and date columns use `NULL` for an unknown value. A numeric **0** remains a recorded value and is distinct from `NULL`.
 
+## Gate 0 files
+
+`development_gate0_files` stores one row per Gate 0 upload. Its columns are `id`, `development_id`, `slot_code`, `file`, `original_filename`, `uploader_id`, `uploaded_at` and `activity_id`. The development foreign key uses the same permanent process ID as the gate tables. Slot codes identify G0-F1 through G0-F4, with multiple uploads retained per slot.
+
+The `file` column contains the storage path. File contents remain under `.store/media/activities/<development_id>/`. An optional link to `development_activity` connects the file to its audit event. Gate 0 file metadata is stored in the files table; the audit row keeps its author, timestamp and event text. Existing Gate 0 uploads migrate with their original paths, filenames and timestamps. Both the dedicated file download URL and previous activity-based download links require authentication.
+
 ## Repeating rows and selections
 
 Repeating form rows and multi-select values have separate child tables. Each child links to its gate using a `development_id` foreign key and has a `position` column. The combination of development ID and position is unique within each child table, so the entered order is retained.

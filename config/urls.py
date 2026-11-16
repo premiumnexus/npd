@@ -10,4 +10,5 @@ urlpatterns += urlpatterns_api
 urlpatterns += [path('lessons/',views.lessons,name='lessons')]
 urlpatterns += [path('recipes/',views.recipes,name='recipes')]
 urlpatterns += [path('attachments/<int:pk>/',views.download_attachment,name='download_attachment')]
+urlpatterns += [path('gate0/files/<int:pk>/',views.download_gate0_file,name='download_gate0_file')]
 urlpatterns += [path('api/dropdown-options/',add_dropdown_option,name='add_dropdown_option')]

@@ -7,7 +7,7 @@ from django.http import HttpResponse, HttpResponseForbidden, FileResponse, Http4
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
-from .models import Food, Supplier, Ingredient, RecipeLine, Activity, STAGES
+from .models import Food, Supplier, Ingredient, RecipeLine, Activity, Gate0File, STAGES
 from .workflow import context as gate_context, transition, GateAccessQuery, CATEGORY, PURCHASING
 from .forms import SupplierForm, IngredientForm, Gate1LineForm, Gate1PackagingForm
 from .gate0 import Gate0Form, initial_brief, save_brief, FILE_SLOTS, file_slots, save_slot_file
@@ -83,7 +83,7 @@ def create_food(request):
 @require_http_methods(['GET','POST'])
 def detail(request,pk):
     with transaction.atomic():
-        food = get_object_or_404(Food.objects.select_for_update(),pk=pk)
+        food = get_object_or_404(Food.objects.select_for_update().prefetch_related('activities__gate0_file','activities__actor'),pk=pk)
         open_gate3_if_due(food)
         view_stage=request.GET.get('gate',food.stage)
         if view_stage not in dict(STAGES): raise Http404
@@ -244,13 +244,27 @@ def catalog(request,kind):
 @login_required
 @require_http_methods(['GET'])
 def download_attachment(request,pk):
-    activity = get_object_or_404(Activity,pk=pk)
-    if not activity.attachment: raise Http404
+    activity = get_object_or_404(Activity.objects.select_related('gate0_file'),pk=pk)
+    gate0_file=getattr(activity,'gate0_file',None)
+    if gate0_file:
+        return attachment_response(gate0_file.file,gate0_file.original_filename)
+    return attachment_response(activity.attachment,activity.attachment_name)
+
+
+@login_required
+@require_http_methods(['GET'])
+def download_gate0_file(request,pk):
+    uploaded=get_object_or_404(Gate0File,pk=pk)
+    return attachment_response(uploaded.file,uploaded.original_filename)
+
+
+def attachment_response(file,filename):
+    if not file: raise Http404
     try:
-        opened = activity.attachment.open('rb')
+        opened = file.open('rb')
     except FileNotFoundError:
         raise Http404
-    response = FileResponse(opened,as_attachment=True,filename=activity.attachment_name or 'attachment',content_type='application/octet-stream')
+    response = FileResponse(opened,as_attachment=True,filename=filename or 'attachment',content_type='application/octet-stream')
     response['X-Content-Type-Options'] = 'nosniff'
     response['Cache-Control'] = 'private, no-store'
     return response

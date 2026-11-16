@@ -3,6 +3,7 @@ from django.utils import timezone
 from .models import Food, Supplier, Ingredient, RecipeLine, Activity, GateAccess, Gate0, Gate1, Gate2, Gate3, Gate0Option, PackagingType, COGSComparisonPolicy, LaunchCheckpoint, GateTransition
 from .forms import LABELS
 from .models import TargetCostingSettings
+from .models import Gate0File
 from .models import (
     GateDataArchive, Gate0ImprovementReason, Gate0Daypart, Gate0Allergen,
     Gate0HighRiskInput, Gate0Competitor, Gate0AnalogSKU, Gate0Cannibalisation,
@@ -12,6 +13,17 @@ from .models import (
 class TargetCostingSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self,request):
         return not TargetCostingSettings.objects.exists() and super().has_add_permission(request)
+
+@admin.register(Gate0File)
+class Gate0FileAdmin(admin.ModelAdmin):
+    list_display=['id','development','slot_code','original_filename','uploader','uploaded_at']
+    list_filter=['slot_code']
+    search_fields=['original_filename','development__name','=development__id']
+    list_select_related=['development','uploader']
+    readonly_fields=[field.name for field in Gate0File._meta.fields]
+    def has_add_permission(self,request): return False
+    def has_change_permission(self,request,obj=None): return False
+    def has_delete_permission(self,request,obj=None): return False
 for model,singular,plural in [
     (Food,'Бүтээгдэхүүн','Бүтээгдэхүүнүүд'),
     (Supplier,'Нийлүүлэгч','Нийлүүлэгчид'),

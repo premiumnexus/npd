@@ -20,7 +20,8 @@ class RelationalGateMigrationTests(TransactionTestCase):
         self.old_apps = executor.loader.project_state(self.migrate_from).apps
 
     def restore_latest_schema(self):
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        executor=MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
 
     def tearDown(self):
         try:

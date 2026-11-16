@@ -4,11 +4,16 @@ from pathlib import PurePosixPath
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
+from django.urls import reverse
 
 POSITIVE = [MinValueValidator(Decimal('0.001'))]
 NONNEGATIVE = [MinValueValidator(0)]
 def activity_upload_path(instance,filename):
     return 'activities/%s/%s%s' % (instance.food_id,uuid.uuid4().hex,PurePosixPath(filename).suffix[:20])
+
+def gate0_upload_path(instance,filename):
+    return 'activities/%s/%s%s' % (instance.development_id,uuid.uuid4().hex,PurePosixPath(filename).suffix[:20])
 STAGES = [('gate0','Gate 0 · Санаа ба танилцуулга'),('gate1','Gate 1 · Концепц ба жор'),('gate2','Gate 2 · Үйлдвэрлэл, нэвтрүүлэлтийн бэлэн байдал'),('launch','Launch GO · 7 / 14 дэх өдрийн хяналт'),('gate3','Gate 3 · 45 дахь өдрийн дүгнэлт')]
 from .workflow import SUBMITTERS
 ROLES = SUBMITTERS
@@ -181,6 +186,40 @@ class Activity(models.Model):
     attachment_slot = models.CharField(max_length=8,blank=True,choices=[(key,key) for key in ['G0-F1','G0-F2','G0-F3','G0-F4']+['G1-F%s' % number for number in range(1,11)]+['G2-F%s' % number for number in range(1,14)]+['G3-F%s' % number for number in range(1,4)]+['L%sF%s' % (day,number) for day in [7,14] for number in range(1,9 if day==7 else 11)]])
     created = models.DateTimeField(auto_now_add=True)
     class Meta: ordering = ['-created']
+
+class Gate0File(models.Model):
+    development = models.ForeignKey(Food,on_delete=models.CASCADE,related_name='gate0_files')
+    slot_code = models.CharField(max_length=8,blank=True,choices=[(code,code) for code in ['G0-F1','G0-F2','G0-F3','G0-F4']])
+    file = models.FileField(upload_to=gate0_upload_path,max_length=100)
+    original_filename = models.CharField(max_length=255)
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,blank=True)
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    activity = models.OneToOneField(Activity,on_delete=models.SET_NULL,null=True,blank=True,related_name='gate0_file')
+
+    class Meta:
+        db_table = 'development_gate0_files'
+        ordering = ['-uploaded_at','-pk']
+        indexes = [models.Index(fields=['development','slot_code','uploaded_at'],name='gate0_file_slot_history')]
+        verbose_name = 'Gate 0 файл'
+        verbose_name_plural = 'Gate 0 файлууд'
+
+    def __str__(self):
+        return '%s / %s / %s' % (self.development_id,self.slot_code,self.original_filename)
+
+    # Shared upload cards use this presentation interface for every gate.
+    @property
+    def attachment_name(self): return self.original_filename
+    @property
+    def actor(self): return self.uploader
+    @property
+    def created(self): return self.uploaded_at
+    @property
+    def download_url(self): return reverse('download_gate0_file',args=[self.pk])
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.activity_id and self.activity.food_id!=self.development_id:
+            raise ValidationError({'activity':'The activity must belong to the same development.'})
 
 class GateTransition(models.Model):
     food=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='gate_transitions')

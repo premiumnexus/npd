@@ -1391,6 +1391,7 @@ class DevelopmentTests(TestCase):
 
     def test_gate0_file_slots_upload_and_read_history(self):
         from .gate0 import FILE_SLOTS
+        from .models import Gate0File
         self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
         with tempfile.TemporaryDirectory() as media:
             with self.settings(MEDIA_ROOT=media):
@@ -1398,7 +1399,7 @@ class DevelopmentTests(TestCase):
                     for version in range(2):
                         response=self.client.post('/food/%s/' % self.food.pk,{'action':'slot_upload','slot':key,'slot_file':SimpleUploadedFile('evidence-%s.bin' % version,b'evidence')})
                         self.assertEqual(response.status_code,302)
-                    self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate0').count(),2)
+                    self.assertEqual(Gate0File.objects.filter(development=self.food,slot_code=key).count(),2)
                 self.user.groups.clear()
                 response=self.client.get('/food/%s/' % self.food.pk)
                 self.assertEqual(len(response.context['gate0slots']),4)
@@ -1416,7 +1417,7 @@ class DevelopmentTests(TestCase):
                 response=self.client.post('/food/new/',{'product_type':'new','product_name':'Brief with file','G0-F3':SimpleUploadedFile('concept.pdf',b'concept')})
                 self.assertEqual(response.status_code,302)
                 food=Food.objects.get(name='Brief with file')
-                self.assertEqual(food.activities.get(attachment_slot='G0-F3').attachment_name,'concept.pdf')
+                self.assertEqual(food.gate0_files.get(slot_code='G0-F3').original_filename,'concept.pdf')
 
     def test_gate0_typed_draft_fields_save_and_ignore_cogs_input(self):
         from .gate0 import initial_brief
