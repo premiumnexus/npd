@@ -1,0 +1,13 @@
+<p class="role-progress-caption">{{ food.get_stage_display }} · Хариуцах баг ба шийдвэрийн дараалал</p>
+<nav class="steps role-progress" aria-label="Хариуцах багийн явц">
+  {% for step in role_progress %}
+  <a href="{% url 'detail' food.pk %}?gate={{ food.stage }}" class="{{ step.state }}" {% if step.state == 'current' %}aria-current="step"{% endif %}>
+    <span>{{ forloop.counter }} / {{ role_progress|length }} · {% if step.state == 'current' %}Одоогийн{% elif step.state == 'done' %}Дууссан{% else %}Дараагийн{% endif %}</span>
+    <strong>{{ step.roles|join:' / ' }}</strong>
+    <small>{{ step.task }}</small>
+    {% if step.editors %}<small>Хамтран засварлах: {{ step.editors|join:', ' }}</small>{% endif %}
+    {% if step.due %}<small>{{ step.due|date:'Y-m-d H:i' }}{% if step.locked %} · Хугацаа хүлээж байна{% endif %}</small>{% endif %}
+    {% if step.started_at %}<small>{{ step.started_at|date:'Y-m-d H:i' }}</small>{% endif %}
+  </a>
+  {% endfor %}
+</nav>

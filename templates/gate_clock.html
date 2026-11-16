@@ -1,0 +1,12 @@
+<div class="gate-timing-card">
+  <h3>Хугацааны мэдээлэл</h3>
+  <small>Одоогийн үе шатанд орсон</small>
+  <strong>{% if timing.current.entered_at %}{{ timing.current.entered_at|date:'Y-m-d H:i' }}{% else %}Хугацаа бүртгэгдээгүй{% endif %}</strong>
+  {% if timing.current.elapsed %}<small>{% if food.completed %}Зарцуулсан хугацаа{% else %}Энэ үе шатанд зарцуулж буй хугацаа{% endif %}</small><strong {% if timing.current.running %}data-elapsed-start="{{ timing.current.entered_at|date:'c' }}"{% endif %}>{{ timing.current.elapsed }}</strong>{% endif %}
+  {% if timing.step_started %}
+    <small>Одоогийн алхам эхэлсэн</small><strong>{{ timing.step_started|date:'Y-m-d H:i' }}</strong>
+    <small>Одоогийн алхамд зарцуулж буй хугацаа</small><strong data-elapsed-start="{{ timing.step_started|date:'c' }}">{{ timing.step_elapsed }}</strong>
+  {% endif %}
+  {% if timing.responsible %}<small>Одоо хариуцах баг</small><p>{{ timing.responsible|join:', ' }}</p>{% endif %}
+  <small>Улаанбаатарын цагаар · Бодит өнгөрсөн хугацаа</small>
+</div>

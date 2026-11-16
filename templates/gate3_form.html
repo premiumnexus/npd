@@ -1,0 +1,10 @@
+<section class="panel padded">
+  {% include 'gate3_time_lock.html' %}
+  <h2>Gate 3 · 45 дахь өдрийн дүгнэлт</h2>
+  <form method="post">
+    {% csrf_token %}
+    {% include 'gate0_fields.html' with form=gate3form %}
+    {% if editable %}<button class="button" name="action" value="gate3_save">Хадгалах</button>{% endif %}
+  </form>
+  {% include 'gate0_file_slots.html' with gate0slots=gate3slots %}
+</section>

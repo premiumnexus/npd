@@ -1,0 +1,3 @@
+{% if not launch_schedule.gate3_open %}
+<div class="notice">Gate 3 нь нэвтрүүлснээс хойш 45 хоногийн дараа нээгдэнэ.{% if launch_schedule.day45_at %} Нээгдэх огноо: <strong>{{ launch_schedule.day45_at|date:'Y-m-d H:i' }}</strong>.{% else %} Launch GO эхэлсэн огноо бүртгэгдээгүй байна.{% endif %} Одоогоор зөвхөн харах боломжтой.</div>
+{% endif %}

@@ -1,0 +1,8 @@
+<section class="gate0-file-slots" aria-label="Файл хавсаргах талбарууд">
+  <h2>Файл хавсаргах талбарууд</h2>
+  <div class="gate0-fields">
+    {% for slot in gate0slots %}
+    {% if not slot.inline %}{% include 'gate_file_slot.html' %}{% endif %}
+    {% endfor %}
+  </div>
+</section>

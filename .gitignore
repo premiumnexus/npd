@@ -6,3 +6,6 @@ db.sqlite3
 .env
 config/local_settings.py
 *.log
+
+
+

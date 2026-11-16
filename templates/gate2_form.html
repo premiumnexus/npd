@@ -1,0 +1,22 @@
+{% load static gate_fields %}
+<script src="{% static 'gate2.js' %}?v=quality-standard-6" defer></script>
+<section class="panel padded">
+  <h2>Gate 2 · Үйлдвэрлэл, нэвтрүүлэлтийн бэлэн байдал</h2>
+  {% include 'gate0_fields.html' with form=gate2form fields=gate2form|gate_sections:'2.1' form_id='gate2-brief-form' %}
+</section>
+{% include 'gate1_calculator.html' with recipe_stage='gate2' recipe_section='2.2' cogs_fields=gate2form|gate_sections:'2.2,C13,C14,C15' %}
+<section class="panel padded">
+  <form method="post" id="gate2-brief-form">
+    {% csrf_token %}
+    {% include 'gate0_fields.html' with form=gate2form fields=gate2form|gate_sections:'2.3,2.4,2.5,2.6,2.7,2.8,2.9,2.10' hide_form_messages=True %}
+  </form>
+  {% for slot in gate2slots %}
+    {% if slot.number == '2.10' %}{% include 'gate_file_slot.html' %}{% endif %}
+  {% endfor %}
+  {% include 'gate0_fields.html' with form=gate2form fields=gate2form|gate_sections:'2.11,2.12' form_id='gate2-brief-form' hide_form_messages=True %}
+  {% for slot in gate2slots %}
+    {% if slot.inline and slot.number != '2.10' %}{% include 'gate_file_slot.html' %}{% endif %}
+  {% endfor %}
+  {% if editable %}<button class="button" form="gate2-brief-form" name="action" value="gate2_save">Хадгалах</button>{% endif %}
+  {% include 'gate0_file_slots.html' with gate0slots=gate2slots %}
+</section>

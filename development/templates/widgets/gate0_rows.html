@@ -1,0 +1,5 @@
+<div class="repeat-rows" data-prefix="{{ widget.name }}">
+  <input type="hidden" name="{{ widget.name }}-TOTAL_FORMS" value="{{ widget.rows|length }}" data-row-total>
+  <div data-row-list>{% for row in widget.rows %}<div class="repeat-row">{{ row.as_p }}{% if not widget.disabled %}<label><input type="checkbox" name="{{ row.prefix }}-DELETE" value="1"> Мөр хасах</label>{% endif %}</div>{% endfor %}</div>
+  {% if not widget.disabled %}<template data-row-template><div class="repeat-row">{{ widget.empty.as_p }}<label><input type="checkbox" name="{{ widget.name }}-__prefix__-DELETE" value="1"> Мөр хасах</label></div></template><button type="button" class="secondary" data-add-row>＋ Мөр нэмэх</button>{% endif %}
+</div>
