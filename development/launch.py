@@ -50,7 +50,7 @@ class CheckpointForm(forms.Form):
         from .workflow import SCIENCE,PLANNING,QA
         if day not in [7,14]: raise ValueError('Only Day 7 and Day 14 checkpoints accept entries.')
         kwargs.setdefault('auto_id','id_day%s_%%s'%day)
-        saved=LaunchCheckpoint.objects.filter(food=food,day=day).first() if food else None
+        saved=LaunchCheckpoint.objects.filter(development=food,day=day).first() if food else None
         initial={
             'checked_date':saved.checked_date if saved else None,
             'sample_result':(saved.sample_result or {'yes':'within','no':'outside'}.get(saved.within_tolerance,'')) if saved else '',
@@ -109,7 +109,7 @@ def save_checkpoint(food,user,form):
         'actor':user,'recorded_at':timezone.now(),
     }
     if form.day==14: values['complaints_count']=data.get('complaints_count')
-    LaunchCheckpoint.objects.update_or_create(food=food,day=form.day,defaults=values)
+    LaunchCheckpoint.objects.update_or_create(development=food,day=form.day,defaults=values)
     Activity.objects.create(food=food,actor=user,text='Launch GO / Day %s / Шалгалтын мэдээлэл хадгалав' % form.day)
 
 def checkpoint_cards(user,food,now=None):

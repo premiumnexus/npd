@@ -13,6 +13,7 @@ Each gate has its own table. Its `development_id` is both the primary key and a 
 | `development_gate1` | Concept, tasting, material, capacity, packaging and marketing fields | `development_id` |
 | `development_gate2` | Production and launch readiness, final pricing, quality limits and launch date | `development_id` |
 | `development_gate3` | Day-45 review, actual performance, complaints and lessons | `development_id` |
+| `development_launchcheckpoint` | Day 7 and Day 14 Launch GO checks | `id`; unique `development_id` + `day` |
 
 Gate values have individual columns. Dates use date columns; counts use integer columns; money, percentages and measured values use decimal columns. Text fields and dropdown codes use text/string columns. Gate 0's product name and category continue to update the summary fields on `development_food`, which the dashboard uses.
 
@@ -23,6 +24,46 @@ Draft records may be incomplete. Optional numeric and date columns use `NULL` fo
 `development_gate0_files` stores one row per Gate 0 upload. Its columns are `id`, `development_id`, `slot_code`, `file`, `original_filename`, `uploader_id`, `uploaded_at` and `activity_id`. The development foreign key uses the same permanent process ID as the gate tables. Slot codes identify G0-F1 through G0-F4, with multiple uploads retained per slot.
 
 The `file` column contains the storage path. File contents remain under `.store/media/activities/<development_id>/`. An optional link to `development_activity` connects the file to its audit event. Gate 0 file metadata is stored in the files table; the audit row keeps its author, timestamp and event text. Existing Gate 0 uploads migrate with their original paths, filenames and timestamps. Both the dedicated file download URL and previous activity-based download links require authentication.
+
+## Gate 1 files
+
+`development_gate1_files` stores one row per G1-F1 through G1-F9 upload, including every version. Its columns are `id`, `development_id`, `slot_code`, `file`, `original_filename`, `uploader_id`, `uploaded_at` and `activity_id`. The development foreign key uses the permanent process ID. A database constraint restricts the table to these nine slot codes.
+
+The `file` column contains the storage path; file contents remain under `.store/media/activities/<development_id>/`. Existing uploads migrate with their paths, original filenames, uploaders and timestamps preserved. Their activity rows retain the audit event and link to the new file records. New uploads use this table as well. Dedicated `/gate1/files/<id>/` downloads and previous activity download links both require authentication.
+
+### Gate 1 marketing idea file
+
+The latest **1.10 Нэвтрүүлэлтийн маркетингийн санааны файл** (G1-F10) is stored directly on `development_gate1`, under the same `development_id`. `marketing_idea_file` stores its file path; `marketing_idea_filename`, `marketing_idea_uploaded_by_id` and `marketing_idea_uploaded_at` store its original name, uploader and timestamp. Processes without an upload have `NULL` in these columns.
+
+The file contents remain under `.store/media/activities/<development_id>/`. Uploading a new version updates these columns and retains previous versions in `development_activity` for authenticated downloads. The migration copies the latest existing upload reference without moving or duplicating file contents. Saving the Gate 1 form does not clear these upload fields. G1-F10 is kept separate from `development_gate1_files`.
+
+## Gate 2 files
+
+`development_gate2_files` stores one row per G2-F1 through G2-F11 upload, including every version. Its columns are `id`, `development_id`, `slot_code`, `file`, `original_filename`, `uploader_id`, `uploaded_at` and `activity_id`. The development foreign key uses the permanent process ID. A database constraint restricts this table to these eleven slot codes.
+
+The migration preserves existing paths, filenames, uploaders, timestamps and audit events. File contents remain under `.store/media/activities/<development_id>/`. New uploads use this table, and both dedicated `/gate2/files/<id>/` downloads and previous activity download links require authentication. Gate 3 handover checks read the new file records as evidence. G2-F12 (ISF Manual) remains an activity upload with its existing ISF visibility.
+
+### Gate 2 quality standard file
+
+The latest **2.10 Чанарын стандарт** upload (G2-F13) is stored directly on `development_gate2`, under the permanent `development_id`. `quality_standard_file` stores its file path; `quality_standard_filename`, `quality_standard_uploaded_by_id` and `quality_standard_uploaded_at` store the original filename, uploader and upload time. These columns are `NULL` when no quality standard has been uploaded.
+
+Existing uploads are backfilled using the latest upload time, then the activity ID to break ties. File contents remain in `.store/media/activities/<development_id>/` without copying or moving them. Every version remains in `development_activity` for authenticated downloads from Gate 2 and the Launch GO quality checks. New uploads update the Gate 2 columns atomically with their history event. Saving the Gate 2 form does not clear these managed upload fields.
+
+## Gate 3 files
+
+`development_gate3_files` stores every version uploaded to G3-F1, G3-F2 and G3-F3. Its columns are `id`, `development_id`, `slot_code`, `file`, `original_filename`, `uploader_id`, `uploaded_at` and `activity_id`. The development foreign key uses the same permanent process ID as the gate tables, and a database constraint restricts the table to these three slot codes.
+
+Existing uploads migrate with their original paths, filenames, authors, timestamps and linked audit events. New uploads use this table as well. File contents remain under `.store/media/activities/<development_id>/`. Both `/gate3/files/<id>/` and previous activity download links require authentication and preserve access to earlier versions.
+
+## Launch GO checkpoints
+
+`development_launchcheckpoint.development_id` links each Day 7 or Day 14 check to `development_food.id`, using the same permanent process ID as the gate tables. The `day` column distinguishes the two checks, and a unique constraint allows one row per development and day. Saving the same day's check updates that row.
+
+The development foreign key was renamed from `food_id` to `development_id`; checkpoint row IDs, parent IDs and recorded values are preserved. The Django field is `LaunchCheckpoint.development`, while `Food.launch_checkpoints` continues to provide access to the process's checks.
+
+Check dates, sample results, actual APSD, action plans and the Day 14 complaint count remain individual columns. Target APSD comes from Gate 2 and achievement percentages are calculated. Uploaded Day 7 and Day 14 reports remain in `development_activity`.
+
+The unused legacy columns `sample_weight`, `sample_texture`, `sample_taste`, `sample_notes`, `sales_notes` and `complaints_details` have been removed. Existing checkpoint rows and the fields used by the current forms are preserved.
 
 ## Repeating rows and selections
 

@@ -1,5 +1,6 @@
 """Gate 1 inputs, with data types and validation to be agreed later."""
 from django import forms
+from django.db import transaction
 
 FIELDS = [
     ('1.1','recipe_version_internal_tasting','Жорын хувилбар, дотоод амталгаа'),
@@ -28,12 +29,26 @@ FILE_SLOTS = [
 ]
 
 def file_slots(food):
-    files=list(food.activities.filter(attachment_stage='gate1').exclude(attachment_slot=''))
-    return [{'key':key,'label':label,'number':'1.10' if key=='G1-F10' else key,'inline':key=='G1-F10','files':[item for item in files if item.attachment_slot==key]} for key,label in FILE_SLOTS]
+    files=list(food.gate1_files.select_related('uploader'))
+    marketing_files=list(food.activities.filter(attachment_stage='gate1',attachment_slot='G1-F10').select_related('actor').order_by('-created','-pk'))
+    return [{'key':key,'label':label,'number':'1.10' if key=='G1-F10' else key,'inline':key=='G1-F10','files':marketing_files if key=='G1-F10' else [item for item in files if item.slot_code==key]} for key,label in FILE_SLOTS]
 
+@transaction.atomic
 def save_slot_file(food,user,key,uploaded):
-    from .models import Activity
-    Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,dict(FILE_SLOTS)[key]),attachment=uploaded,attachment_name=uploaded.name[:255],attachment_stage='gate1',attachment_slot=key)
+    from .models import Activity, Gate1, Gate1File
+    label = dict(FILE_SLOTS)[key]
+    if key != 'G1-F10':
+        activity = Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,label))
+        return Gate1File.objects.create(development=food,slot_code=key,file=uploaded,
+            original_filename=uploaded.name[:255],uploader=user,uploaded_at=activity.created,activity=activity)
+    activity = Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,label),attachment=uploaded,attachment_name=uploaded.name[:255],attachment_stage='gate1',attachment_slot=key)
+    Gate1.objects.update_or_create(development_id=food.pk, defaults={
+        'marketing_idea_file': activity.attachment.name,
+        'marketing_idea_filename': activity.attachment_name,
+        'marketing_idea_uploaded_by_id': activity.actor_id,
+        'marketing_idea_uploaded_at': activity.created,
+    })
+    return activity
 
 from .gate1_typed import Gate1Form
 

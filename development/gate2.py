@@ -1,5 +1,6 @@
 """Gate 2 inputs; data types and business rules will be defined later."""
 from django import forms
+from django.db import transaction
 
 FIELDS = [
     ('2.1','mass_trial_result','Масс туршилтын үр дүн'),
@@ -39,13 +40,28 @@ def available_file_slots(food):
 
 
 def file_slots(food):
-    files=list(food.activities.filter(attachment_stage='gate2').exclude(attachment_slot=''))
+    files=list(food.gate2_files.select_related('uploader'))
+    inline_files=list(food.activities.filter(attachment_stage='gate2',attachment_slot__in=['G2-F12','G2-F13']).select_related('actor').order_by('-created','-pk'))
     inline_numbers={'G2-F12':'2.12','G2-F13':'2.10'}
-    return [{'key':key,'label':label,'number':inline_numbers.get(key,key),'inline':key in inline_numbers,'files':[item for item in files if item.attachment_slot==key]} for key,label in available_file_slots(food)]
+    return [{'key':key,'label':label,'number':inline_numbers.get(key,key),'inline':key in inline_numbers,'files':[item for item in inline_files if item.attachment_slot==key] if key in inline_numbers else [item for item in files if item.slot_code==key]} for key,label in available_file_slots(food)]
 
+@transaction.atomic
 def save_slot_file(food,user,key,uploaded):
-    from .models import Activity
-    Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,dict(available_file_slots(food))[key]),attachment=uploaded,attachment_name=uploaded.name[:255],attachment_stage='gate2',attachment_slot=key)
+    from .models import Activity, Gate2, Gate2File
+    label=dict(available_file_slots(food))[key]
+    if key in ('G2-F12','G2-F13'):
+        activity=Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,label),attachment=uploaded,attachment_name=uploaded.name[:255],attachment_stage='gate2',attachment_slot=key)
+        if key == 'G2-F13':
+            Gate2.objects.update_or_create(development_id=food.pk, defaults={
+                'quality_standard_file': activity.attachment.name,
+                'quality_standard_filename': activity.attachment_name,
+                'quality_standard_uploaded_by_id': activity.actor_id,
+                'quality_standard_uploaded_at': activity.created,
+            })
+        return activity
+    activity=Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,label))
+    return Gate2File.objects.create(development=food,slot_code=key,file=uploaded,
+        original_filename=uploaded.name[:255],uploader=user,uploaded_at=activity.created,activity=activity)
 
 from .gate2_typed import Gate2Form
 

@@ -1138,6 +1138,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(self.client.post(url,payload).status_code,403)
 
     def test_gate3_file_slots_history_permissions_and_completion(self):
+        from .models import Gate3File
         from django.utils import timezone
         from datetime import timedelta
         self.food.launched_at=timezone.now()-timedelta(days=60)
@@ -1151,7 +1152,7 @@ class DevelopmentTests(TestCase):
                 for key,_ in FILE_SLOTS:
                     response=self.client.post(url,{'action':'slot_upload','slot':key,'slot_file':SimpleUploadedFile('review.csv',b'review')})
                     self.assertEqual(response.status_code,302)
-                    self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate3').count(),1)
+                    self.assertEqual(Gate3File.objects.filter(development=self.food,slot_code=key).count(),1)
                 self.client.post(url,{'action':'slot_upload','slot':'G3-F1','slot_file':SimpleUploadedFile('revised.xlsx',b'revised')})
                 response=self.client.get(url)
                 self.assertEqual(len(response.context['gate3slots']),3)
@@ -1164,8 +1165,8 @@ class DevelopmentTests(TestCase):
                 response=self.client.get(url)
                 self.assertContains(response,'revised.xlsx')
                 self.assertNotContains(response,'name="slot_file"')
-                activity=self.food.activities.get(attachment_name='revised.xlsx')
-                response=self.client.get('/attachments/%s/' % activity.pk)
+                uploaded=self.food.gate3_files.get(original_filename='revised.xlsx')
+                response=self.client.get('/attachments/%s/' % uploaded.activity_id)
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(b''.join(response.streaming_content),b'revised')
                 response.close()
@@ -1198,7 +1199,9 @@ class DevelopmentTests(TestCase):
         self.assertNotContains(self.client.get(url),'id_handover_pack_complete')
 
     def test_gate2_file_slots_and_review_lock(self):
+        from django.urls import reverse
         from .gate2 import available_file_slots
+        from .models import Gate2File
         self.food.stage='gate2'; self.food.save()
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         url='/food/%s/' % self.food.pk
@@ -1207,7 +1210,10 @@ class DevelopmentTests(TestCase):
                 for key,_ in available_file_slots(self.food):
                     response=self.client.post(url,{'action':'slot_upload','slot':key,'slot_file':SimpleUploadedFile('report.pdf',b'report')})
                     self.assertEqual(response.status_code,302)
-                    self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate2').count(),1)
+                    if key in ['G2-F12','G2-F13']:
+                        self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate2').count(),1)
+                    else:
+                        self.assertEqual(Gate2File.objects.filter(development=self.food,slot_code=key).count(),1)
                 self.client.post(url,{'action':'slot_upload','slot':'G2-F11','slot_file':SimpleUploadedFile('final.xlsx',b'final costing')})
                 response=self.client.get(url)
                 self.assertEqual(len(response.context['gate2slots']),12)
@@ -1221,8 +1227,8 @@ class DevelopmentTests(TestCase):
                 response=self.client.get(url)
                 self.assertContains(response,'report.pdf')
                 self.assertNotContains(response,'name="slot_file"')
-                activity=self.food.activities.get(attachment_name='final.xlsx')
-                response=self.client.get('/attachments/%s/' % activity.pk)
+                uploaded=Gate2File.objects.get(development=self.food,original_filename='final.xlsx')
+                response=self.client.get(reverse('download_gate2_file',args=[uploaded.pk]))
                 self.assertEqual(response.status_code,200)
                 self.assertEqual(b''.join(response.streaming_content),b'final costing')
                 response.close()
@@ -1330,7 +1336,9 @@ class DevelopmentTests(TestCase):
         self.assertNotContains(self.client.get(url),'id_day45_target_confirmed')
 
     def test_gate1_file_slots_upload_history_and_access(self):
+        from django.urls import reverse
         from .gate1 import FILE_SLOTS
+        from .models import Gate1File
         self.food.stage='gate1'; self.food.save()
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         url='/food/%s/' % self.food.pk
@@ -1339,7 +1347,10 @@ class DevelopmentTests(TestCase):
                 for key,_ in FILE_SLOTS:
                     response=self.client.post(url,{'action':'slot_upload','slot':key,'slot_file':SimpleUploadedFile('evidence.xlsx',b'evidence')})
                     self.assertEqual(response.status_code,302)
-                    self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate1').count(),1)
+                    if key=='G1-F10':
+                        self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate1').count(),1)
+                    else:
+                        self.assertEqual(Gate1File.objects.filter(development=self.food,slot_code=key).count(),1)
                 self.client.post(url,{'action':'slot_upload','slot':'G1-F9','slot_file':SimpleUploadedFile('revised.xlsx',b'new version')})
                 response=self.client.get(url)
                 self.assertEqual(len(response.context['gate1slots']),10)
@@ -1362,8 +1373,8 @@ class DevelopmentTests(TestCase):
                 response=self.client.get(url)
                 self.assertContains(response,'evidence.xlsx')
                 self.assertNotContains(response,'name="slot_file"')
-                activity=self.food.activities.filter(attachment_slot='G1-F9').first()
-                download=self.client.get('/attachments/%s/' % activity.pk)
+                uploaded=Gate1File.objects.filter(development=self.food,slot_code='G1-F9').first()
+                download=self.client.get(reverse('download_gate1_file',args=[uploaded.pk]))
                 self.assertEqual(download.status_code,200)
                 self.assertEqual(b''.join(download.streaming_content),b'new version')
                 download.close()

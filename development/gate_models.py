@@ -4,9 +4,22 @@ The field declarations are deliberately static: the schema must not depend on
 form construction, runtime dropdown choices, or database contents.
 """
 from decimal import Decimal
+from pathlib import PurePosixPath
+import uuid
 
+from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+
+
+def gate1_marketing_upload_path(instance, filename):
+    suffix = PurePosixPath(filename).suffix[:20]
+    return 'activities/%s/%s%s' % (instance.development_id, uuid.uuid4().hex, suffix)
+
+
+def gate2_quality_upload_path(instance, filename):
+    suffix = PurePosixPath(filename).suffix[:20]
+    return 'activities/%s/%s%s' % (instance.development_id, uuid.uuid4().hex, suffix)
 
 
 class GateRecord(models.Model):
@@ -103,6 +116,16 @@ class Gate1(GateRecord):
     marketing_name = models.TextField('Кампанит ажлын нэр', null=True, blank=True)
     marketing_key_message = models.TextField('Гол мессеж', null=True, blank=True)
     marketing_brief = models.TextField('Нэвтрүүлэлтийн маркетингийн санаа', null=True, blank=True)
+    marketing_idea_file = models.FileField(
+        'Нэвтрүүлэлтийн маркетингийн санааны файл',
+        upload_to=gate1_marketing_upload_path, null=True, blank=True, editable=False,
+    )
+    marketing_idea_filename = models.CharField(max_length=255, null=True, blank=True, editable=False)
+    marketing_idea_uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='+',
+        null=True, blank=True, editable=False,
+    )
+    marketing_idea_uploaded_at = models.DateTimeField(null=True, blank=True, editable=False)
 
     class Meta:
         db_table = 'development_gate1'
@@ -148,6 +171,16 @@ class Gate2(GateRecord):
     quality_tolerance_baseline = models.DecimalField('Жингийн зорилт (г)', null=True, blank=True, max_digits=14, decimal_places=3, validators=[MinValueValidator(0)])
     quality_weight_min = models.DecimalField('Жингийн доод хязгаар (г)', null=True, blank=True, max_digits=14, decimal_places=3, validators=[MinValueValidator(0)])
     quality_weight_max = models.DecimalField('Жингийн дээд хязгаар (г)', null=True, blank=True, max_digits=14, decimal_places=3, validators=[MinValueValidator(0)])
+    quality_standard_file = models.FileField(
+        'Чанарын стандарт', upload_to=gate2_quality_upload_path,
+        null=True, blank=True, editable=False,
+    )
+    quality_standard_filename = models.CharField(max_length=255, null=True, blank=True, editable=False)
+    quality_standard_uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='+',
+        null=True, blank=True, editable=False,
+    )
+    quality_standard_uploaded_at = models.DateTimeField(null=True, blank=True, editable=False)
     day45_target_confirmed = models.CharField('Gate 0-ийн зорилт хэвээр / Өөрчилсөн', null=True, blank=True, max_length=200)
     day45_units_store_day = models.DecimalField('45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
     day45_writeoff_percent = models.DecimalField('45 хоногийн акт (өртгийн %)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])

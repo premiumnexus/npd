@@ -41,6 +41,8 @@ def derived_values(food,data):
     result['shelf_samples_day7_day14']=checkpoints.get(7,'')
     result['day14_sample_within_tolerance']=checkpoints.get(14,'')
     slots=set(food.activities.exclude(attachment='').values_list('attachment_slot',flat=True)) if food else set()
+    if food:
+        slots.update(food.gate2_files.exclude(file='').values_list('slot_code',flat=True))
     has_cogs=gate2_calcs(food,launch.get('typed_cogs'),launch.get('launch_date'))['final_cogs_invoice_price'] is not None if food else False
     flags={
         'handover_final_cogs':has_cogs or 'G2-F11' in slots,

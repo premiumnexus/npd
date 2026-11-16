@@ -50,7 +50,8 @@ def coerce(field, value):
 
 
 def scalar_fields(model):
-    return [field for field in model._meta.concrete_fields if not field.primary_key
+    # Upload metadata is managed by the file slot, independently of brief saves.
+    return [field for field in model._meta.concrete_fields if not field.primary_key and field.editable
             and field.name not in ('gate', 'position')]
 
 

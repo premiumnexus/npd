@@ -1,5 +1,6 @@
 """Gate 3 review fields; types and business rules will be defined later."""
 from django import forms
+from django.db import transaction
 
 FIELDS = [
     ('3.1','planned_vs_actual_launch_date','Нэвтрүүлсэн огноо: төлөвлөгөө vs бодит'),
@@ -22,12 +23,16 @@ FILE_SLOTS = [
 ]
 
 def file_slots(food):
-    files=list(food.activities.filter(attachment_stage='gate3').exclude(attachment_slot=''))
-    return [{'key':key,'label':label,'files':[item for item in files if item.attachment_slot==key]} for key,label in FILE_SLOTS]
+    files=list(food.gate3_files.select_related('uploader'))
+    return [{'key':key,'label':label,'files':[item for item in files if item.slot_code==key]} for key,label in FILE_SLOTS]
 
+@transaction.atomic
 def save_slot_file(food,user,key,uploaded):
-    from .models import Activity
-    Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,dict(FILE_SLOTS)[key]),attachment=uploaded,attachment_name=uploaded.name[:255],attachment_stage='gate3',attachment_slot=key)
+    from .models import Activity,Gate3File
+    label=dict(FILE_SLOTS)[key]
+    activity=Activity.objects.create(food=food,actor=user,text='%s · %s' % (key,label))
+    return Gate3File.objects.create(development=food,slot_code=key,file=uploaded,
+        original_filename=uploaded.name[:255],uploader=user,uploaded_at=activity.created,activity=activity)
 
 from .gate3_typed import Gate3Form
 

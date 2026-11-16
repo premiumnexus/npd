@@ -7,7 +7,7 @@ from django.http import HttpResponse, HttpResponseForbidden, FileResponse, Http4
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
-from .models import Food, Supplier, Ingredient, RecipeLine, Activity, Gate0File, STAGES
+from .models import Food, Supplier, Ingredient, RecipeLine, Activity, Gate0File, Gate1File, Gate2File, Gate3File, STAGES
 from .workflow import context as gate_context, transition, GateAccessQuery, CATEGORY, PURCHASING
 from .forms import SupplierForm, IngredientForm, Gate1LineForm, Gate1PackagingForm
 from .gate0 import Gate0Form, initial_brief, save_brief, FILE_SLOTS, file_slots, save_slot_file
@@ -83,7 +83,7 @@ def create_food(request):
 @require_http_methods(['GET','POST'])
 def detail(request,pk):
     with transaction.atomic():
-        food = get_object_or_404(Food.objects.select_for_update().prefetch_related('activities__gate0_file','activities__actor'),pk=pk)
+        food = get_object_or_404(Food.objects.select_for_update().prefetch_related('activities__gate0_file','activities__gate1_file','activities__gate2_file','activities__gate3_file','activities__actor'),pk=pk)
         open_gate3_if_due(food)
         view_stage=request.GET.get('gate',food.stage)
         if view_stage not in dict(STAGES): raise Http404
@@ -244,10 +244,19 @@ def catalog(request,kind):
 @login_required
 @require_http_methods(['GET'])
 def download_attachment(request,pk):
-    activity = get_object_or_404(Activity.objects.select_related('gate0_file'),pk=pk)
+    activity = get_object_or_404(Activity.objects.select_related('gate0_file','gate1_file','gate2_file','gate3_file'),pk=pk)
     gate0_file=getattr(activity,'gate0_file',None)
     if gate0_file:
         return attachment_response(gate0_file.file,gate0_file.original_filename)
+    gate1_file=getattr(activity,'gate1_file',None)
+    if gate1_file:
+        return attachment_response(gate1_file.file,gate1_file.original_filename)
+    gate2_file=getattr(activity,'gate2_file',None)
+    if gate2_file:
+        return attachment_response(gate2_file.file,gate2_file.original_filename)
+    gate3_file=getattr(activity,'gate3_file',None)
+    if gate3_file:
+        return attachment_response(gate3_file.file,gate3_file.original_filename)
     return attachment_response(activity.attachment,activity.attachment_name)
 
 
@@ -255,6 +264,27 @@ def download_attachment(request,pk):
 @require_http_methods(['GET'])
 def download_gate0_file(request,pk):
     uploaded=get_object_or_404(Gate0File,pk=pk)
+    return attachment_response(uploaded.file,uploaded.original_filename)
+
+
+@login_required
+@require_http_methods(['GET'])
+def download_gate1_file(request,pk):
+    uploaded=get_object_or_404(Gate1File,pk=pk)
+    return attachment_response(uploaded.file,uploaded.original_filename)
+
+
+@login_required
+@require_http_methods(['GET'])
+def download_gate2_file(request,pk):
+    uploaded=get_object_or_404(Gate2File,pk=pk)
+    return attachment_response(uploaded.file,uploaded.original_filename)
+
+
+@login_required
+@require_http_methods(['GET'])
+def download_gate3_file(request,pk):
+    uploaded=get_object_or_404(Gate3File,pk=pk)
     return attachment_response(uploaded.file,uploaded.original_filename)
 
 

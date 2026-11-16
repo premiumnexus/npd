@@ -14,6 +14,15 @@ def activity_upload_path(instance,filename):
 
 def gate0_upload_path(instance,filename):
     return 'activities/%s/%s%s' % (instance.development_id,uuid.uuid4().hex,PurePosixPath(filename).suffix[:20])
+
+def gate1_upload_path(instance,filename):
+    return 'activities/%s/%s%s' % (instance.development_id,uuid.uuid4().hex,PurePosixPath(filename).suffix[:20])
+
+def gate2_upload_path(instance,filename):
+    return 'activities/%s/%s%s' % (instance.development_id,uuid.uuid4().hex,PurePosixPath(filename).suffix[:20])
+
+def gate3_upload_path(instance,filename):
+    return 'activities/%s/%s%s' % (instance.development_id,uuid.uuid4().hex,PurePosixPath(filename).suffix[:20])
 STAGES = [('gate0','Gate 0 · Санаа ба танилцуулга'),('gate1','Gate 1 · Концепц ба жор'),('gate2','Gate 2 · Үйлдвэрлэл, нэвтрүүлэлтийн бэлэн байдал'),('launch','Launch GO · 7 / 14 дэх өдрийн хяналт'),('gate3','Gate 3 · 45 дахь өдрийн дүгнэлт')]
 from .workflow import SUBMITTERS
 ROLES = SUBMITTERS
@@ -143,27 +152,21 @@ class Food(models.Model):
     def __str__(self): return self.name
 
 class LaunchCheckpoint(models.Model):
-    food=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='launch_checkpoints')
+    development=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='launch_checkpoints')
     day=models.PositiveSmallIntegerField('Өдөр',choices=[(7,'Day 7'),(14,'Day 14')])
     checked_date=models.DateField('Шалгасан огноо',null=True,blank=True)
     sample_result=models.CharField('Дээжийн үр дүн',max_length=11,blank=True,choices=[('within','Хязгаарт багтсан'),('conditional','Нөхцөлтэй'),('outside','Хязгаараас гарсан')])
     action_plan=models.TextField('Арга хэмжээ, хариуцагч, хугацаа',blank=True)
     within_tolerance=models.CharField('Зөвшөөрөх хүрээнд байгаа эсэх',max_length=3,blank=True,choices=[('yes','Тийм'),('no','Үгүй')])
-    sample_weight=models.DecimalField('Дээжийн жин (г)',max_digits=12,decimal_places=3,null=True,blank=True,validators=NONNEGATIVE)
-    sample_texture=models.TextField('Дээжийн бүтэц',blank=True)
-    sample_taste=models.TextField('Дээжийн амт',blank=True)
-    sample_notes=models.TextField('Дээжийн тэмдэглэл',blank=True)
     sales_snapshot=models.DecimalField('Борлуулалт (ширхэг / дэлгүүр / өдөр)',max_digits=14,decimal_places=2,null=True,blank=True,validators=NONNEGATIVE)
-    sales_notes=models.TextField('Борлуулалтын тойм',blank=True)
     complaints_count=models.PositiveIntegerField('Гомдлын тоо',null=True,blank=True)
-    complaints_details=models.TextField('Гомдлын мэдээлэл',blank=True)
     actor=models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.PROTECT,null=True,blank=True)
     recorded_at=models.DateTimeField('Бүртгэсэн огноо',null=True,blank=True)
     class Meta:
-        constraints=[models.UniqueConstraint(fields=['food','day'],name='unique_launch_checkpoint_day')]
+        constraints=[models.UniqueConstraint(fields=['development','day'],name='unique_launch_checkpoint_day')]
         verbose_name='Нэвтрүүлэлтийн хяналтын цэг'
         verbose_name_plural='Нэвтрүүлэлтийн хяналтын цэгүүд'
-    def __str__(self): return '%s / Day %s'%(self.food,self.day)
+    def __str__(self): return '%s / Day %s'%(self.development,self.day)
 
 class RecipeLine(models.Model):
     yield_factor=models.DecimalField('Орцын гарц (0.01–1.00)',max_digits=5,decimal_places=4,default=1,validators=[MinValueValidator(Decimal('0.01')),MaxValueValidator(1)])
@@ -220,6 +223,120 @@ class Gate0File(models.Model):
         from django.core.exceptions import ValidationError
         if self.activity_id and self.activity.food_id!=self.development_id:
             raise ValidationError({'activity':'The activity must belong to the same development.'})
+
+class Gate1File(models.Model):
+    development = models.ForeignKey(Food,on_delete=models.CASCADE,related_name='gate1_files')
+    slot_code = models.CharField(max_length=8,choices=[('G1-F%s' % number,'G1-F%s' % number) for number in range(1,10)])
+    file = models.FileField(upload_to=gate1_upload_path,max_length=100)
+    original_filename = models.CharField(max_length=255)
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,blank=True)
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    activity = models.OneToOneField(Activity,on_delete=models.SET_NULL,null=True,blank=True,related_name='gate1_file')
+
+    class Meta:
+        db_table = 'development_gate1_files'
+        ordering = ['-uploaded_at','-pk']
+        indexes = [models.Index(fields=['development','slot_code','uploaded_at'],name='gate1_file_slot_history')]
+        constraints = [models.CheckConstraint(
+            check=models.Q(slot_code__in=['G1-F%s' % number for number in range(1,10)]),
+            name='gate1_file_valid_slot',
+        )]
+        verbose_name = 'Gate 1 файл'
+        verbose_name_plural = 'Gate 1 файлууд'
+
+    def __str__(self):
+        return '%s / %s / %s' % (self.development_id,self.slot_code,self.original_filename)
+
+    @property
+    def attachment_name(self): return self.original_filename
+    @property
+    def actor(self): return self.uploader
+    @property
+    def created(self): return self.uploaded_at
+    @property
+    def download_url(self): return reverse('download_gate1_file',args=[self.pk])
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.activity_id and self.activity.food_id!=self.development_id:
+            raise ValidationError({'activity':'The activity must belong to the same development.'})
+
+
+class Gate2File(models.Model):
+    development = models.ForeignKey(Food,on_delete=models.CASCADE,related_name='gate2_files')
+    slot_code = models.CharField(max_length=8,choices=[('G2-F%s' % number,'G2-F%s' % number) for number in range(1,12)])
+    file = models.FileField(upload_to=gate2_upload_path,max_length=100)
+    original_filename = models.CharField(max_length=255)
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,blank=True)
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    activity = models.OneToOneField(Activity,on_delete=models.SET_NULL,null=True,blank=True,related_name='gate2_file')
+
+    class Meta:
+        db_table = 'development_gate2_files'
+        ordering = ['-uploaded_at','-pk']
+        indexes = [models.Index(fields=['development','slot_code','uploaded_at'],name='gate2_file_slot_history')]
+        constraints = [models.CheckConstraint(
+            check=models.Q(slot_code__in=['G2-F%s' % number for number in range(1,12)]),
+            name='gate2_file_valid_slot',
+        )]
+        verbose_name = 'Gate 2 файл'
+        verbose_name_plural = 'Gate 2 файлууд'
+
+    def __str__(self):
+        return '%s / %s / %s' % (self.development_id,self.slot_code,self.original_filename)
+
+    @property
+    def attachment_name(self): return self.original_filename
+    @property
+    def actor(self): return self.uploader
+    @property
+    def created(self): return self.uploaded_at
+    @property
+    def download_url(self): return reverse('download_gate2_file',args=[self.pk])
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.activity_id and self.activity.food_id!=self.development_id:
+            raise ValidationError({'activity':'The activity must belong to the same development.'})
+
+
+class Gate3File(models.Model):
+    development = models.ForeignKey(Food,on_delete=models.CASCADE,related_name='gate3_files')
+    slot_code = models.CharField(max_length=8,choices=[('G3-F%s' % number,'G3-F%s' % number) for number in range(1,4)])
+    file = models.FileField(upload_to=gate3_upload_path,max_length=100)
+    original_filename = models.CharField(max_length=255)
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,blank=True)
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    activity = models.OneToOneField(Activity,on_delete=models.SET_NULL,null=True,blank=True,related_name='gate3_file')
+
+    class Meta:
+        db_table = 'development_gate3_files'
+        ordering = ['-uploaded_at','-pk']
+        indexes = [models.Index(fields=['development','slot_code','uploaded_at'],name='gate3_file_slot_history')]
+        constraints = [models.CheckConstraint(
+            check=models.Q(slot_code__in=['G3-F%s' % number for number in range(1,4)]),
+            name='gate3_file_valid_slot',
+        )]
+        verbose_name = 'Gate 3 файл'
+        verbose_name_plural = 'Gate 3 файлууд'
+
+    def __str__(self):
+        return '%s / %s / %s' % (self.development_id,self.slot_code,self.original_filename)
+
+    @property
+    def attachment_name(self): return self.original_filename
+    @property
+    def actor(self): return self.uploader
+    @property
+    def created(self): return self.uploaded_at
+    @property
+    def download_url(self): return reverse('download_gate3_file',args=[self.pk])
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.activity_id and self.activity.food_id!=self.development_id:
+            raise ValidationError({'activity':'The activity must belong to the same development.'})
+
 
 class GateTransition(models.Model):
     food=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='gate_transitions')

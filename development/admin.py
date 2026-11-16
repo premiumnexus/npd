@@ -1,9 +1,10 @@
 from django.contrib import admin
 from django.utils import timezone
+from django.utils.html import format_html
 from .models import Food, Supplier, Ingredient, RecipeLine, Activity, GateAccess, Gate0, Gate1, Gate2, Gate3, Gate0Option, PackagingType, COGSComparisonPolicy, LaunchCheckpoint, GateTransition
 from .forms import LABELS
 from .models import TargetCostingSettings
-from .models import Gate0File
+from .models import Gate0File, Gate1File, Gate2File, Gate3File
 from .models import (
     GateDataArchive, Gate0ImprovementReason, Gate0Daypart, Gate0Allergen,
     Gate0HighRiskInput, Gate0Competitor, Gate0AnalogSKU, Gate0Cannibalisation,
@@ -24,6 +25,46 @@ class Gate0FileAdmin(admin.ModelAdmin):
     def has_add_permission(self,request): return False
     def has_change_permission(self,request,obj=None): return False
     def has_delete_permission(self,request,obj=None): return False
+
+@admin.register(Gate1File)
+class Gate1FileAdmin(admin.ModelAdmin):
+    list_display=['id','development','slot_code','original_filename','uploader','uploaded_at']
+    list_filter=['slot_code']
+    search_fields=['original_filename','development__name','=development__id']
+    list_select_related=['development','uploader']
+    readonly_fields=[field.name for field in Gate1File._meta.fields if field.name!='file'] + ['download_link']
+    fields=readonly_fields
+
+    @admin.display(description='Файл')
+    def download_link(self,obj):
+        if not obj.file: return '—'
+        return format_html('<a href="{}">{}</a>',obj.download_url,obj.file.name)
+
+    def has_add_permission(self,request): return False
+    def has_change_permission(self,request,obj=None): return False
+    def has_delete_permission(self,request,obj=None): return False
+@admin.register(Gate2File)
+class Gate2FileAdmin(admin.ModelAdmin):
+    list_display=['id','development','slot_code','original_filename','uploader','uploaded_at']
+    list_filter=['slot_code']
+    search_fields=['original_filename','development__name','=development__id']
+    list_select_related=['development','uploader']
+    readonly_fields=[field.name for field in Gate2File._meta.fields if field.name!='file'] + ['download_link']
+    fields=readonly_fields
+
+    @admin.display(description='Файл')
+    def download_link(self,obj):
+        if not obj.file: return '—'
+        return format_html('<a href="{}">{}</a>',obj.download_url,obj.file.name)
+
+    def has_add_permission(self,request): return False
+    def has_change_permission(self,request,obj=None): return False
+    def has_delete_permission(self,request,obj=None): return False
+
+@admin.register(Gate3File)
+class Gate3FileAdmin(Gate2FileAdmin):
+    pass
+
 for model,singular,plural in [
     (Food,'Бүтээгдэхүүн','Бүтээгдэхүүнүүд'),
     (Supplier,'Нийлүүлэгч','Нийлүүлэгчид'),
@@ -149,10 +190,30 @@ class Gate1Admin(GateRecordAdmin):
     list_display = ['development_id_display', 'development_name', 'recipe_version_internal_tasting', 'cogs_status']
     inlines = [Gate1MaterialInline]
 
+    def get_readonly_fields(self, request, obj=None):
+        return super().get_readonly_fields(request, obj) + [
+            'marketing_idea_file_path', 'marketing_idea_filename',
+            'marketing_idea_uploaded_by', 'marketing_idea_uploaded_at',
+        ]
+
+    @admin.display(description='Нэвтрүүлэлтийн маркетингийн санааны файл')
+    def marketing_idea_file_path(self, obj):
+        return obj.marketing_idea_file.name or '—'
+
 
 @admin.register(Gate2)
 class Gate2Admin(GateRecordAdmin):
     list_display = ['development_id_display', 'development_name', 'final_recipe_version', 'cogs_status', 'launch_date']
+
+    def get_readonly_fields(self, request, obj=None):
+        return super().get_readonly_fields(request, obj) + [
+            'quality_standard_file_path', 'quality_standard_filename',
+            'quality_standard_uploaded_by', 'quality_standard_uploaded_at',
+        ]
+
+    @admin.display(description='Чанарын стандарт')
+    def quality_standard_file_path(self, obj):
+        return obj.quality_standard_file.name or '—'
 
 
 @admin.register(Gate3)

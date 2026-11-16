@@ -1,6 +1,15 @@
 {% if activity.gate0_file %}
   <small>Gate 0</small>
   <a class="attachment-link" href="{% url 'download_gate0_file' activity.gate0_file.pk %}">&#128206; {{ activity.gate0_file.original_filename }}</a>
+{% elif activity.gate1_file %}
+  <small>Gate 1</small>
+  <a class="attachment-link" href="{% url 'download_gate1_file' activity.gate1_file.pk %}">&#128206; {{ activity.gate1_file.original_filename }}</a>
+{% elif activity.gate2_file %}
+  <small>Gate 2</small>
+  <a class="attachment-link" href="{% url 'download_gate2_file' activity.gate2_file.pk %}">&#128206; {{ activity.gate2_file.original_filename }}</a>
+{% elif activity.gate3_file %}
+  <small>Gate 3</small>
+  <a class="attachment-link" href="{% url 'download_gate3_file' activity.gate3_file.pk %}">&#128206; {{ activity.gate3_file.original_filename }}</a>
 {% elif activity.attachment %}
   <small>{{ activity.get_attachment_stage_display }}</small>
   <a class="attachment-link" href="{% url 'download_attachment' activity.pk %}">&#128206; {{ activity.attachment_name }}</a>
