@@ -153,6 +153,8 @@ Authenticated read endpoints:
 - `GET /api/foods/`
 - `GET /api/foods/<id>/cost/`
 
+12312321321321321
+
 Application writes use CSRF-protected server-rendered forms.
 
 ```text
