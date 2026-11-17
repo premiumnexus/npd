@@ -1,5 +1,9 @@
 # Development and gate data
 
+PostgreSQL is the default database. See [PostgreSQL setup](postgresql.md) for Linux installation, connection settings and initialization of an empty database. The SQLite demo remains available with `CUFOOD_SQLITE=1`.
+
+The single active migration, `0001_baseline`, creates the current schema directly. Historical conversions described below were performed by the retired migration chain and are retained here to explain existing data. The baseline does not convert partially upgraded legacy databases; see [migration baseline](migration-baseline.md).
+
 Every development process has one permanent ID: `development_food.id` (`Food.pk`). That ID follows the process from Gate 0 through Gate 3. Moving between gates, editing a recipe, or returning a gate for corrections does not create a new development ID.
 
 Each gate has its own table. Its `development_id` is both the primary key and a foreign key to `development_food.id`. For development **42**, the Gate 0, Gate 1, Gate 2 and Gate 3 rows all use **42**. The gate tables have no separate auto-incrementing gate ID.
@@ -123,7 +127,7 @@ Calculated values such as COGS, margins and launch-day differences remain read-o
 
 ## Existing data and the legacy archive
 
-The data migration copies existing Gate 0–3 JSON payloads into typed columns and ordered child rows. Existing development IDs are retained. The original payloads are preserved in `development_gate_data_archive`, together with their source gate, original source identifier, development ID and conversion issues.
+Before consolidation, the legacy data migration copied existing Gate 0–3 JSON payloads into typed columns and ordered child rows. Existing development IDs were retained. The original payloads remain in `development_gate_data_archive`, together with their source gate, original source identifier, development ID and conversion issues. Fresh installations create an empty archive table.
 
 The active gate tables have no JSON payload column. Raw JSON is retained in the archive to preserve removed fields, older free-text values and values that cannot be converted safely. Unconvertible numeric or date values leave their typed columns `NULL` and can be surfaced for manual correction; the original payload remains available after correction.
 

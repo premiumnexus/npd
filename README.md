@@ -109,32 +109,37 @@ Gate file tables store `development_id`, slot code, file path, original filename
 
 File contents remain under `.store/media/activities/<development_id>/`. Downloads require authentication. Dedicated gate file URLs and previous activity download URLs remain supported, including earlier versions.
 
-Migration `0042_remove_obsolete_launch_fields` removes these unused Launch checkpoint columns: `sample_weight`, `sample_texture`, `sample_taste`, `sample_notes`, `sales_notes` and `complaints_details`. Existing rows and remaining field values are preserved.
+The baseline schema excludes these unused Launch checkpoint columns: `sample_weight`, `sample_texture`, `sample_taste`, `sample_notes`, `sales_notes` and `complaints_details`.
 
-Original gate JSON is retained in `development_gate_data_archive`. The application still reads archived legacy values and conversion issues; this table is not disposable. The local cleanup audit identified orphan records. Their cleanup is a separate data-maintenance task from the schema changes described here.
+When present, original gate JSON is retained in `development_gate_data_archive`, and the application reads its legacy values and conversion issues. The authorized test-data reset cleared the local developments, their related records, legacy archives and orphan records. Accounts, catalogs and workflow configuration were retained. New installations start with empty process and archive tables.
 
-See [the database guide](docs/database.md) for relationships and SQL examples. Preserve migration history and back up the database and media before schema changes. SQLite decimal snapshots have precision limits; use the application's Decimal calculations for full intermediate precision.
+The application now has one migration, `development/migrations/0001_baseline.py`, generated from the current models. It includes workflow groups/access defaults, dropdown defaults and the VAT setting. Its replacement metadata recognizes databases with all 42 original migrations applied. Fresh databases create the final schema directly. Partially migrated legacy databases must finish the original migration history before using this baseline; see [migration baseline](docs/migration-baseline.md).
+
+See [the database guide](docs/database.md) for relationships and SQL examples. Keep future incremental migrations and back up the database and media before schema changes. SQLite decimal snapshots have precision limits; use the application's Decimal calculations for full intermediate precision.
 
 ## Configuration and deployment
 
-The stack is Django 4.2.30 and Django REST Framework 3.15.2. MySQL dependencies are in `requirements.txt`; local SQLite dependencies are in `requirements-local.txt`. The application uses server-rendered templates, static CSS/JavaScript, Django sessions and Django admin.
+See [production handoff](docs/production-handoff.md) for the ordered developer and sysadmin steps, remaining release work and acceptance checks for the LAN-only Linux deployment.
 
-For MySQL, create a separate application database and user, install `requirements.txt`, and set environment variables. `.env.example` documents them; the application does not automatically load that file.
+The stack is Django 4.2.30 and Django REST Framework 3.15.2. PostgreSQL is the default database; its Psycopg driver is in `requirements.txt`. Local SQLite dependencies are in `requirements-local.txt`. The application uses server-rendered templates, static CSS/JavaScript, Django sessions and Django admin.
+
+For PostgreSQL, create a separate application database and user, install `requirements.txt`, and set environment variables. See [PostgreSQL setup](docs/postgresql.md) for Linux installation and empty-database initialization. `.env.example` documents the settings; the application does not automatically load that file.
 
 ```powershell
 Remove-Item Env:CUFOOD_SQLITE -ErrorAction SilentlyContinue
 $env:DB_NAME = 'cu_food'
 $env:DB_USER = 'cu_food'
 $env:DB_PASSWORD = '<your database password>'
-$env:DB_HOST = 'localhost'
-$env:DB_PORT = '3306'
+$env:DB_HOST = '127.0.0.1'
+$env:DB_PORT = '5432'
 $env:DEBUG = '1'
+python -m pip install -r requirements.txt
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver
 ```
 
-For production, set `DEBUG=0`, a non-default random `SECRET_KEY`, explicit `ALLOWED_HOSTS` and the production database credentials. Run migrations and `collectstatic`, configure a WSGI server and static asset serving, and use HTTPS. Preserve authenticated application downloads for uploaded files. Demo setup is optional and should not be used to seed a production database. Production hosting and MySQL execution have not been verified in this workspace.
+For production, set `DEBUG=0`, a non-default random `SECRET_KEY`, explicit `ALLOWED_HOSTS` and the production database credentials. Run migrations and `collectstatic`, configure a WSGI server and static asset serving, and use HTTPS. Preserve authenticated application downloads for uploaded files. Start with an empty PostgreSQL database; do not run `seed_demo` or import `db.sqlite3`. Production hosting and live PostgreSQL execution have not been verified in this workspace. Upgrade Python and Django to supported versions and validate the application before production use; Django 4.2 security support ended in April 2026.
 
 ## Verification and API
 
@@ -146,7 +151,7 @@ python manage.py makemigrations --check --dry-run
 python manage.py test
 ```
 
-Tests cover gate forms, costing, role and time restrictions, approval sequencing, Launch checkpoints, file histories, authenticated downloads, API responses and schema/data migrations. Automated checks in this workspace use SQLite.
+Tests cover gate forms, costing, role and time restrictions, approval sequencing, Launch checkpoints, file histories, authenticated downloads, API responses, baseline schema creation and setup defaults. Automated checks in this workspace use SQLite.
 
 Authenticated read endpoints:
 

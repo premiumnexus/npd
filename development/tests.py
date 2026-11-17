@@ -577,21 +577,6 @@ class DevelopmentTests(TestCase):
         self.assertFalse(timing['current']['running'])
         self.assertIsNone(timing['step_started'])
 
-    def test_gate_timing_backfill_uses_actual_activity_dates(self):
-        import importlib
-        from django.apps import apps
-        from datetime import datetime,timedelta,timezone as dt_timezone
-        from .models import Activity
-        start=datetime(2026,11,1,tzinfo=dt_timezone.utc)
-        creation=Activity.objects.create(food=self.food,actor=self.user,text='Хөгжүүлэлтийн танилцуулга үүсгэв')
-        approval=Activity.objects.create(food=self.food,actor=self.user,text='Эцсийн шийдвэр: батлав · Gate 0 · Санаа ба танилцуулга → Gate 1 · Концепц ба жор · Бэлтгэж байна')
-        Activity.objects.filter(pk=creation.pk).update(created=start)
-        Activity.objects.filter(pk=approval.pk).update(created=start+timedelta(hours=2))
-        module=importlib.import_module('development.migrations.0021_backfill_gate_transition_times')
-        module.backfill(apps,None)
-        self.assertEqual(self.food.gate_transitions.count(),2)
-        self.assertEqual(self.food.gate_transitions.get(action='approve').occurred_at,start+timedelta(hours=2))
-
     def test_gate3_derived_launch_sales_margin_and_writeoff_comparisons(self):
         from .gate0 import save_brief as save_gate0
         from .gate2 import save_brief as save_gate2
