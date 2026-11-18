@@ -131,6 +131,13 @@ html[data-theme=dark] .apsd-achievement[data-status=Green]{background:#253e30;co
 html[data-theme=dark] .apsd-achievement[data-status=Amber]{background:#493b1e;color:#ffe19b}
 html[data-theme=dark] .apsd-achievement[data-status=Red]{background:#4c2930;color:#ffb9c0}
 [data-launch-checkpoint] [data-checkpoint-actions],[data-launch-checkpoint] .gate0-file-slot{grid-column:1 / -1}
+.main.main--guest{margin-left:0}
+.login-page header{height:44px;padding:0 24px}
+.login-page .theme-toggle{width:30px;height:30px;min-width:30px}
+.login-page .theme-toggle-icon{width:18px;height:18px}
+.login-page .main>main{background:#ffc078 url('login-background.png') center/cover no-repeat;display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:none;margin:0;min-height:calc(100svh - 44px)}
+.login-page .login{width:100%;margin:0;box-shadow:0 16px 48px rgb(70 34 10 / 24%)}
+.login-page main>.notice{width:100%;max-width:430px}
 .brand{gap:12px;letter-spacing:0}
 .brand-logo{display:block;width:76px;height:auto;flex-shrink:0}
 @media(max-width:1100px){.brand{gap:10px}.brand-logo{width:64px}.brand span{font-size:11px;letter-spacing:1px;padding-left:12px}}
