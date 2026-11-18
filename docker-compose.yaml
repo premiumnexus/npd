@@ -1,0 +1,45 @@
+# Local development only. See README.md before using this for deployment.
+services:
+  web:
+    build: .
+    init: true
+    command:
+      - sh
+      - -c
+      - python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8000 --noreload
+    environment:
+      DEBUG: "1"
+      SECRET_KEY: "${SECRET_KEY:-local-development-only-cu-food}"
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DB_NAME: "${DB_NAME:-cu_food}"
+      DB_USER: "${DB_USER:-cu_food}"
+      DB_PASSWORD: "${DB_PASSWORD:-local-compose-only}"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_SSLMODE: disable
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8000}:8000"
+    volumes:
+      - media_data:/app/.store/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${DB_NAME:-cu_food}"
+      POSTGRES_USER: "${DB_USER:-cu_food}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-local-compose-only}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  media_data:

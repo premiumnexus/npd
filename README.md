@@ -22,6 +22,47 @@ python manage.py migrate
 python manage.py runserver 127.0.0.1:8000
 ```
 
+## Run with Docker Compose
+
+Install and start [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) with Linux containers, or use Docker Engine with the Compose plugin on Linux. From this project directory, run:
+
+```powershell
+docker compose up --build -d
+docker compose logs -f web
+```
+
+Open http://127.0.0.1:8000 after migrations finish. Press Ctrl+C to leave the log stream; the containers keep running. Compose starts the Django app on Python 3.12 and a PostgreSQL 17 database, waits for the database health check, and applies migrations before starting the app.
+
+Create your first administrator in a separate terminal:
+
+```powershell
+docker compose exec web python manage.py createsuperuser
+```
+
+The database starts empty apart from Django and workflow configuration. If you want sample products and a demo administrator instead, run `docker compose exec web python manage.py seed_demo` and choose a password when prompted.
+
+Database records and uploaded files live in the `postgres_data` and `media_data` Docker volumes. This creates a separate PostgreSQL database; it does not import the local `db.sqlite3` or existing `.store/media` files. To stop the stack while preserving its data:
+
+```powershell
+docker compose down
+```
+
+`docker compose down --volumes` deletes the stack's database and uploads. Rebuild with `docker compose up --build -d` after changing application code or dependencies; source files are copied into the image.
+
+No `.env` file is required for local use. To customize settings, copy `.env.example` to `.env` and edit `DB_NAME`, `DB_USER`, `DB_PASSWORD` and `SECRET_KEY`. Compose reads `.env` for substitution and always connects the app to the `db` service on port 5432. Set `WEB_PORT=8001` in `.env` if host port 8000 is already in use, then open http://127.0.0.1:8001. Database initialization settings apply when the database volume is first created; editing credentials later does not change the existing PostgreSQL account.
+
+This Compose setup is for local development: it uses Django's development server, `DEBUG=1` and local default credentials, exposes the website only on this computer, and keeps PostgreSQL off host ports. Production requires the deployment changes described below. Containers have not been built or started in this workspace because Docker is not installed.
+
+Useful checks against the running PostgreSQL stack:
+
+```powershell
+docker compose config --quiet
+docker compose exec web python manage.py check
+docker compose exec web python manage.py test
+```
+
+The database readiness check follows [Docker's Compose startup guidance](https://docs.docker.com/compose/how-tos/startup-order/). PostgreSQL 17 uses `/var/lib/postgresql/data` for its persistent volume, as documented by the [official PostgreSQL image](https://hub.docker.com/_/postgres).
+
 ## Workflow and access
 
 | Stage | Purpose | Default submitter | Review path |
