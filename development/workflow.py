@@ -100,6 +100,12 @@ def transition(user,food,action,note):
         description = 'Захирлын шийдвэрт шилжүүлэв'
     elif action == 'approve':
         if not rights['can_decide']: return 'Шийдвэр гаргах эрхгүй эсвэл хяналтын дараалал тохирохгүй байна.'
+        if food.stage == 'gate0':
+            from .gate0 import Gate0Form,initial_brief
+            saved=initial_brief(food)
+            validation=Gate0Form(saved,initial=saved,food=food,submission=True)
+            if not validation.is_valid():
+                return 'Оруулсан мэдээллийн төрлийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else key,', '.join(errors)) for key,errors in validation.errors.items())
         from .gate1_typed import cost_comparison
         from .gate1 import initial_brief as gate1_data
         red_gate1=food.stage=='gate1' and cost_comparison(food,gate1_data(food).get('typed_cogs'))['cogs_status']=='Red'

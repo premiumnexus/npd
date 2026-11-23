@@ -63,11 +63,11 @@ def dashboard(request):
 @require_http_methods(['GET','POST'])
 def create_food(request):
     if not (request.user.is_superuser or GateAccessQuery(request.user,'gate0','can_submit')): return HttpResponseForbidden('Бүтээгдэхүүний багийн эрх шаардлагатай')
-    form = Gate0Form(request.POST if request.method == 'POST' else None)
+    form = Gate0Form(request.POST if request.method == 'POST' else None,request.FILES if request.method == 'POST' else None)
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             food = Food.objects.create(name='Нэргүй бүтээгдэхүүн',owner=request.user)
-            save_brief(food,form.cleaned_data)
+            save_brief(food,form.cleaned_data,user=request.user)
             from .gate_storage import ensure_gate_rows
             ensure_gate_rows(food)
             for key,_ in FILE_SLOTS:
@@ -208,9 +208,9 @@ def detail(request,pk):
                 else: return render_page()
             elif action == 'gate0_save':
                 if food.stage != 'gate0': return HttpResponseForbidden('Зөвхөн Gate 0-д засварлана.')
-                gate0form = Gate0Form(request.POST,initial=initial_brief(food),food=food)
+                gate0form = Gate0Form(request.POST,request.FILES,initial=initial_brief(food),food=food)
                 if gate0form.is_valid():
-                    save_brief(food,gate0form.cleaned_data)
+                    save_brief(food,gate0form.cleaned_data,user=request.user)
                     Activity.objects.create(food=food,actor=request.user,text='Gate 0 танилцуулгын мэдээллийг шинэчлэв')
                     if gate0form.launch_warning: messages.warning(request,'Нэвтрүүлэх огноо 30 хоногийн дотор байна. Энэ нь зөвхөн анхааруулга юм.')
                 else: return render_page()

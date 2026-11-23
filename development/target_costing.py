@@ -1,6 +1,13 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 OUTPUTS = ['price_excl_vat', 'max_invoice_price', 'cogs_limit', 'cu_total_margin']
+
+def after_writeoff_margin(total_margin,writeoff):
+    try:
+        total_margin,writeoff=Decimal(str(total_margin)),Decimal(str(writeoff))
+        return (total_margin-writeoff).quantize(Decimal('.01'),rounding=ROUND_HALF_UP) if total_margin.is_finite() and writeoff.is_finite() else None
+    except (InvalidOperation,ValueError,TypeError):
+        return None
 
 def vat_rate():
     from .models import TargetCostingSettings

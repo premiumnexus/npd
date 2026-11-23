@@ -3,12 +3,58 @@
 {{ form.non_field_errors }}
 {% if form.legacy_values %}<div class="notice"><p>Өмнөх чөлөөт текстийг шинэ төрөлд тохируулна уу:</p>{% for label,value in form.legacy_values %}<p><strong>{{ label }}:</strong> {{ value }}</p>{% endfor %}</div>{% endif %}
 {% endif %}
-<div class="gate0-fields" data-option-food="{{ form.food.pk|default:'' }}">
-  {% for field in fields|default:form %}
-  <div class="gate0-field {% if field.name == 'product_name' or field.name == 'category' or field.name == 'subcategory' %}identity-field{% endif %}"{% if field.field.frontend_hidden %} hidden{% endif %}>
-    <label for="{{ field.id_for_label }}"><span class="field-number">{{ field.field.gate_number }}</span> {{ field.label }}</label>
-    {% gate_widget field form_id %}{{ field.errors }}
-    {% if field.name == 'evidence_level' %}<small id="{{ field.auto_id }}_reminder" class="field-reminder" data-evidence-reminder aria-live="polite"{% if field.value %} hidden{% endif %}>Төрөл сонгогдоогүй байна</small>{% endif %}
+{% if form.identity_fields %}
+<fieldset class="gate0-identity" data-option-food="{{ form.food.pk|default:'' }}">
+  <legend>Бүтээгдэхүүн</legend>
+  <small>Юу хийх гэж байна?</small>
+  <div class="gate0-fields">
+    {% for field in form.identity_fields %}{% include 'gate0_field.html' %}{% endfor %}
   </div>
-  {% endfor %}
+</fieldset>
+<fieldset class="gate0-identity gate0-customer" data-option-food="{{ form.food.pk|default:'' }}">
+  <legend>Хэрэглэгч ба нотолгоо</legend>
+  <small><em>Хэнд, хэзээ, яагаад?</em></small>
+  <div class="gate0-fields">
+    {% for field in form.customer_fields %}{% include 'gate0_field.html' %}{% endfor %}
+  </div>
+</fieldset>
+<fieldset class="gate0-identity gate0-pricing" data-option-food="{{ form.food.pk|default:'' }}">
+  <legend>Үнэ ба ашиг</legend>
+  <small><em>Зөв үнээр хийж чадах уу?</em></small>
+  <div class="gate0-fields">
+    {% for field in form.pricing_fields %}
+      {% include 'gate0_field.html' %}
+    {% endfor %}
+  </div>
+</fieldset>
+<fieldset class="gate0-identity gate0-sales" data-option-food="{{ form.food.pk|default:'' }}">
+  <legend>Борлуулалтын зорилт</legend>
+  <small><em>Хэр зарагдах вэ?</em></small>
+  <div class="gate0-fields">
+    {% for field in form.sales_fields %}
+      {% include 'gate0_field.html' %}
+    {% endfor %}
+  </div>
+</fieldset>
+<fieldset class="gate0-identity gate0-supply" data-option-food="{{ form.food.pk|default:'' }}">
+  <legend>Үйлдвэрлэл ба нийлүүлэлт</legend>
+  <small><em>Хийж, нийлүүлж чадах уу?</em></small>
+  <div class="gate0-fields">
+    {% for field in form.supply_fields %}{% include 'gate0_field.html' %}{% endfor %}
+  </div>
+</fieldset>
+<fieldset class="gate0-identity gate0-safety" data-option-food="{{ form.food.pk|default:'' }}">
+  <legend>Хүнсний аюулгүй байдал</legend>
+  <small><em>Ямар эрсдэлтэй вэ?</em></small>
+  <div class="gate0-fields">
+    {% for field in form.safety_fields %}{% include 'gate0_field.html' %}{% endfor %}
+  </div>
+</fieldset>
+<div class="gate0-fields" data-option-food="{{ form.food.pk|default:'' }}">
+  {% for field in form.remaining_fields %}{% include 'gate0_field.html' %}{% endfor %}
 </div>
+{% else %}
+<div class="gate0-fields" data-option-food="{{ form.food.pk|default:'' }}">
+  {% for field in fields|default:form %}{% include 'gate0_field.html' %}{% endfor %}
+</div>
+{% endif %}

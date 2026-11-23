@@ -30,8 +30,6 @@ def gate_widget(bound_field, form_id=None):
     widget = copy.deepcopy(bound_field.field.widget)
     if form_id:
         widget.attrs['form'] = form_id
-    if bound_field.name == 'evidence_level':
-        widget.attrs['aria-describedby'] = f'{bound_field.auto_id}_reminder'
     if hint:
         widget.attrs.update(placeholder=hint, title=hint)
         if isinstance(widget, forms.Select) and not widget.allow_multiple_selected:

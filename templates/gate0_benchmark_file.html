@@ -1,0 +1,13 @@
+<div class="gate0-file-slot">
+  <label for="file-{{ slot.key }}"><span class="field-number">{{ slot.number }}</span> {{ slot.label }}</label>
+  {% for item in slot.files %}
+    <a class="attachment-link" href="{{ item.download_url }}">{{ item.attachment_name }}</a>
+    <small>{{ item.actor }} · {{ item.created|date:'Y-m-d H:i' }}</small>
+  {% empty %}{% if not creating %}<small>Файл хавсаргаагүй байна.</small>{% endif %}{% endfor %}
+  {% if creating %}
+    <input type="file" id="file-{{ slot.key }}" name="{{ slot.key }}">
+  {% elif editable %}
+    <input type="file" id="file-{{ slot.key }}" name="slot_file" form="{{ slot.upload_form_id }}" required aria-label="{{ slot.label }}">
+    <button class="secondary full" form="{{ slot.upload_form_id }}" name="action" value="slot_upload">Файл хавсаргах</button>
+  {% endif %}
+</div>

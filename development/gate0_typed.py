@@ -4,7 +4,7 @@ import json
 from django import forms
 from django.utils import timezone
 from .models import Gate0Option, Supplier
-from .gate0_rows import RowsField,CompetitorRow,AnalogRow,CannibalisationRow
+from .gate0_rows import RowsField,EvidenceRow,CompetitorRow,AnalogRow,CannibalisationRow
 
 class DaypartChoiceField(forms.MultipleChoiceField):
     def to_python(self, value):
@@ -15,8 +15,63 @@ class DaypartChoiceField(forms.MultipleChoiceField):
 
 
 class Gate0Form(forms.Form):
+    identity_keys = ('product_name', 'product_type', 'category', 'subcategory', 'product_role', 'planned_launch_date')
+    customer_keys = ('customer_segment', 'target_customer_occasion', 'daypart', 'evidence')
+    pricing_keys = ('competitor_benchmark', 'target_shelf_price', 'vat_percent', 'cu_margin', 'vendor_rebate', 'vendor_margin', 'price_excl_vat', 'max_invoice_price', 'cu_total_margin', 'cogs_limit')
+    sales_keys = ('analog_skus_sales_target', 'target_units_store_day', 'store_scope', 'store_cluster', 'store_count', 'cannibalisation', 'day45_writeoff_percent', 'day45_margin_percent')
+    supply_keys = ('producer', 'new_supplier', 'raw_materials_supply_risk', 'seasonal_price_swing', 'moq', 'first_capacity_check', 'capacity_units_day')
+    safety_keys = ('first_food_safety_risk', 'high_risk_inputs', 'shelf_life_hours', 'technical_risk_measure')
+    required_keys = identity_keys[:-1] + ('customer_segment', 'daypart', 'target_shelf_price', 'cu_margin', 'vendor_rebate', 'vendor_margin', 'target_units_store_day') + supply_keys[:3] + safety_keys[:2]
+
+    @property
+    def identity_fields(self):
+        return [self[key] for key in self.identity_keys]
+
+    @property
+    def customer_fields(self):
+        return [self[key] for key in self.customer_keys]
+
+    @property
+    def pricing_fields(self):
+        return [self[key] for key in self.pricing_keys]
+
+    @property
+    def sales_fields(self):
+        return [self[key] for key in self.sales_keys]
+
+    @property
+    def supply_fields(self):
+        return [self[key] for key in self.supply_keys]
+
+    @property
+    def safety_fields(self):
+        return [self[key] for key in self.safety_keys]
+
+    @property
+    def legacy_analog_files(self):
+        return list(self.food.gate0_files.filter(slot_code='G0-F4',analog_rows__isnull=True)) if self.food else []
+
+    @property
+    def legacy_evidence_files(self):
+        return list(self.food.gate0_files.filter(slot_code='G0-F1',evidence_rows__isnull=True)) if self.food else []
+
+    @property
+    def legacy_competitor_files(self):
+        return list(self.food.gate0_files.filter(slot_code='G0-F2',competitor_rows__isnull=True)) if self.food else []
+
+    @property
+    def remaining_fields(self):
+        return [field for field in self if field.name not in self.identity_keys + self.customer_keys + self.pricing_keys + self.sales_keys + self.supply_keys + self.safety_keys]
+
     def __init__(self,*args,food=None,submission=False,**kwargs):
         super().__init__(*args,**kwargs)
+        evidence_keys=EvidenceRow.evidence_keys
+        if self.is_bound and 'evidence' not in self.data and 'evidence-TOTAL_FORMS' not in self.data:
+            self.data=self.data.copy()
+            self.data['evidence']=[{key:self.data.get(key,'') for key in evidence_keys}]
+        if not self.is_bound and not self.initial.get('evidence'):
+            legacy={key:self.initial.get(key,'') for key in evidence_keys}
+            if any(legacy.values()): self.initial['evidence']=[legacy]
         self.food=food
         self.submission=submission
         options=list(Gate0Option.objects.filter(active=True))
@@ -33,9 +88,12 @@ class Gate0Form(forms.Form):
         def number(maximum=None,places=1,required=False): return forms.DecimalField(min_value=0,max_value=maximum,decimal_places=places,max_digits=14,required=required)
         required=False
         add('product_type','Шинэ эсвэл сайжруулалт','0.2',enum([('new','Шинэ'),('improvement','Сайжруулалт')],False))
-        self.fields['product_type'].help_text+=' Сонголт заавал биш. Gate 0 илгээсний дараа түгжинэ.'
+        self.fields['product_type'].help_text+=' Gate 0 илгээсний дараа түгжинэ.'
+        self.locked_product_type = None
         if food and food.gate0_submitted_at:
-            self.fields['product_type'].disabled=True
+            from .gate0 import initial_brief
+            self.locked_product_type = initial_brief(food).get('product_type')
+            self.fields['product_type'].disabled=bool(self.locked_product_type)
         add('existing_sku','Одоо байгаа SKU код','0.2',text())
         add('product_name','Бүтээгдэхүүний нэр','0.1',forms.CharField(max_length=160,required=required))
         add('category','Ангилал','0.1',enum([('FF','FF'),('ISF','ISF')],required))
@@ -46,17 +104,15 @@ class Gate0Form(forms.Form):
         add('improvement_reason','Юу өөрчлөх, яагаад өөрчлөх тайлбар','0.3',text())
         add('product_role','Бүтээгдэхүүний үүрэг','0.4',enum(choices('product_role'),required))
         self.fields['product_role'].help_text+=' Тайлан, шүүлтэд ашиглана. Ашгийн тооцоонд нөлөөлөхгүй.'
-        add('customer_segment','Зорилтот хэрэглэгчийн сегмент','0.5',enum(choices('segment'),required))
-        add('daypart','Хэрэглээний үе','0.5',DaypartChoiceField(choices=[('morning','Өглөө'),('lunch','Өдөр'),('evening','Орой'),('late','Шөнө')],required=required,widget=forms.SelectMultiple(attrs={'data-multiselect':True})))
-        add('target_customer_occasion','Зорилтот хэрэглэгч, хэрэглээний тайлбар','0.5',text())
-        add('customer_need_evidence','Хэрэглээний нотолгоо','0.6',text(required))
-        add('evidence_level','Нотолгооны төрөл','0.6',enum([('A','A · POS / борлуулалтын өгөгдөл'),('B','B · Хэрэглэгчийн судалгаа'),('C','C · Дэлгүүрийн хүсэлт'),('D','D · Өрсөлдөгчийн үнэ'),('E','E · борлуулалт'),('F','F · Гадаад CU/BGF борлуулалт'),('G','G · Тренд')],required))
-        add('evidence_reference','Нотолгооны эх сурвалж','0.6',text())
+        add('customer_segment','Зорилтот хэрэглэгчийн сегмент','2.1',enum(choices('segment'),required))
+        add('daypart','Хэрэглээний үе','2.3',DaypartChoiceField(choices=[('morning','Өглөө'),('lunch','Өдөр'),('evening','Орой'),('late','Шөнө')],required=required,widget=forms.SelectMultiple(attrs={'data-multiselect':True})))
+        add('target_customer_occasion','Зорилтот хэрэглэгч, хэрэглээний тайлбар','2.2',text())
+        add('evidence','Нотолгоо','2.4',RowsField(EvidenceRow,required=False,complete=False))
         add('competitor_benchmark','Өрсөлдөгчийн жишиг','0.7',RowsField(CompetitorRow,required=False,complete=False))
         add('target_shelf_price','Зорилтот тавиурын үнэ (НӨАТ-тай, ₮)','0.8',forms.IntegerField(min_value=1,required=required))
         add('cu_margin','CU-ийн ашгийн хувь','0.9',number(60,1,required))
         self.fields['cu_margin'].help_text+=' НӨАТ-гүй тавиурын үнээс, rebate-ийн өмнө. SKU тутамд.'
-        add('vendor_rebate','Rebate (буцаан олголт) %','0.10',number(30,2,required))
+        add('vendor_rebate','Rebate % (0 байж болно)','0.10',number(30,2,required))
         self.fields['vendor_rebate'].help_text+=' Нэхэмжлэхийн үнийн хувь. 0 байж болно. Нийлүүлэгчээс CU-д төлнө.'
         add('producer','Үйлдвэрлэгч','0.11',enum([('central_foods','Central Foods')]+[('supplier:%s' % item.pk,item.name) for item in Supplier.objects.all()],required))
         add('vendor_margin','Нийлүүлэгчийн ашгийн хувь','0.12',number(60,2,required))
@@ -80,30 +136,42 @@ class Gate0Form(forms.Form):
             self.fields[key].widget.attrs.update({'class':'costing-setting' if key=='vat_percent' else 'costing-result','data-costing-output':key})
         for key in ['target_shelf_price','cu_margin','vendor_rebate','vendor_margin']:
             self.fields[key].widget.attrs['class']='costing-input'
-        add('analog_skus_sales_target','Жишиг SKU (3 хүртэл мөр, заавал биш)','0.14',RowsField(AnalogRow,minimum=0,maximum=3,complete=False,required=False))
+        add('analog_skus_sales_target','Жишиг SKU','4.1',RowsField(AnalogRow,minimum=0,maximum=3,complete=False,required=False,help_text='3 хүртэл мөр, заавал биш'))
         add('target_units_store_day','Зорилтот APSD (ширхэг / дэлгүүр / өдөр)','0.14',number(None,2,required))
         add('store_scope','Дэлгүүрийн хамрах хүрээ','0.15',enum([('all','Бүх дэлгүүр'),('cluster','Кластер'),('pilot','Сонгосон дэлгүүр (туршилт)')],required))
         add('store_cluster','Дэлгүүрийн кластер','0.15',enum(choices('cluster')))
         add('store_count','Дэлгүүрийн тоо','0.15',forms.IntegerField(min_value=1,required=required))
-        add('cannibalisation','Каннибализаци','0.16',RowsField(CannibalisationRow,complete=False,required=False))
+        add('cannibalisation','Каннибализаци (мөр): нөлөөлөх SKU · борлуулалтаас авах %','4.6',RowsField(CannibalisationRow,complete=False,required=False))
         yesno=[('yes','Тийм'),('no','Үгүй')]
         add('raw_materials_supply_risk','Шинэ түүхий эд байгаа эсэх','0.17',enum(yesno,required))
         add('new_supplier','Шинэ нийлүүлэгч байгаа эсэх','0.17',enum(yesno,required))
         add('seasonal_price_swing','Улирлын үнийн хэлбэлзэл байгаа эсэх','0.17',enum(yesno,required))
         add('moq','Захиалгын доод хэмжээ (MOQ)','0.17',number(None,2,required))
-        add('first_capacity_check','Хүчин чадлын анхны үнэлгээ','0.18',enum([('available', 'Боломжтой'),('unavailable','Боломжгүй'),('conditional','Нөхцөлтэй')],required))
-        add('capacity_units_day','Хүчин чадал (ширхэг / өдөр)','0.18',number(None,2,required))
+        add('first_capacity_check','Нийлүүлэгчийн хүчин чадлын анхны үнэлгээ','5.6',enum([('available', 'Боломжтой'),('unavailable','Боломжгүй'),('conditional','Нөхцөлтэй')],required))
+        add('capacity_units_day','Нийлүүлэгчийн хүчин чадал (ширхэг/өдөр)','5.7',number(None,2,required))
         add('first_food_safety_risk','Харшил үүсгэгч','0.19',forms.MultipleChoiceField(choices=choices('allergen'),required=False,widget=forms.CheckboxSelectMultiple))
         add('high_risk_inputs','Өндөр эрсдэлтэй орц','0.19',forms.MultipleChoiceField(choices=choices('high_risk'),required=False,widget=forms.CheckboxSelectMultiple))
-        add('shelf_life_days','Хадгалах хугацаа (хоног, шаардлагатай бол)','0.19',forms.IntegerField(min_value=1,required=False))
+        add('shelf_life_hours','Хадгалах хугацаа (цаг)','6.3',forms.IntegerField(min_value=1,required=False))
         add('technical_risk_measure','Шинжилгээ, хэмжилтээр шалгах технологийн эрсдэл','0.20',text())
-        add('day45_success_criteria','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','0.21',number(None,2,required))
-        add('day45_writeoff_percent','45 хоногийн акт (өртгийн %)','0.21',number(100,1,required))
-        add('day45_margin_percent','45 хоногийн акт-ын дараах ашиг (%)','0.21',forms.DecimalField(decimal_places=2,max_digits=14,required=required))
+        add('day45_writeoff_percent','45 хоногийн акт %','4.7',number(100,1,required))
+        add('day45_margin_percent','45 хоногийн актын дараах ашиг % (= 3.9 − 4.7)','4.8',forms.CharField(required=False,disabled=True,help_text='3.9 − 4.7'))
+        from .target_costing import after_writeoff_margin
+        sales_margin=after_writeoff_margin(calculated['cu_total_margin'],self.data.get('day45_writeoff_percent') if self.is_bound else self.initial.get('day45_writeoff_percent'))
+        self.initial['day45_margin_percent']=format(sales_margin.quantize(Decimal('.01'),rounding=ROUND_HALF_UP),'f') if sales_margin is not None else ''
+        self.fields['day45_margin_percent'].widget.attrs.update({'class':'costing-result','data-costing-output':'day45_margin_percent'})
         add('planned_launch_date','Төлөвлөсөн нэвтрүүлэх огноо','0.22',forms.DateField(required=required,widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'})))
         self.fields['planned_launch_date'].help_text+=' Өнөөдрөөс 30 хоногийн дотор байвал анхааруулна. Илгээхийг хориглохгүй.'
         from .dropdown_options import apply_options
         apply_options(self, 'gate0')
+        for section, keys in ((1,self.identity_keys),(2,self.customer_keys),(3,self.pricing_keys),(4,self.sales_keys),(5,self.supply_keys),(6,self.safety_keys)):
+            for index, key in enumerate(keys, start=1):
+                field = self.fields[key]
+                number = f'{section}.{index}'
+                field.help_text = field.help_text.replace(field.gate_number + ' · ', number + ' · ', 1)
+                field.gate_number = number
+                field.gate_required = key in self.required_keys
+                field.required = submission and field.gate_required
+        self.order_fields(self.identity_keys + self.customer_keys + self.pricing_keys + self.sales_keys + self.supply_keys + self.safety_keys)
         self.legacy_values=[]
         # Keep unconverted old text visible for manual conversion; never infer numbers.
         if not self.is_bound:
@@ -119,16 +187,25 @@ class Gate0Form(forms.Form):
 
     def clean(self):
         data=super().clean()
+        first_evidence=next(iter(data.get('evidence') or []),{})
+        from .models import Gate0File
+        for key,slot in [('evidence','G0-F1'),('competitor_benchmark','G0-F2'),('analog_skus_sales_target','G0-F4')]:
+            attachments={row['attachment'] for row in data.get(key,[]) if row.get('attachment')}
+            allowed=set(Gate0File.objects.filter(development=self.food,slot_code=slot,pk__in=attachments).values_list('pk',flat=True)) if self.food else set()
+            if attachments-allowed:
+                self.add_error(key,'Хавсралт энэ бүтээгдэхүүний талбарт хамаарахгүй байна.')
+        for key in EvidenceRow.evidence_keys:
+            data[key]=first_evidence.get(key,'')
         kind=data.get('product_type')
         if kind == 'new':
             for key in ['existing_sku','improvement_reasons','improvement_reason']: data[key]=[] if key=='improvement_reasons' else ''
         # New/improvement is a workflow route, independent of FF/ISF category.
-        if self.food and self.food.gate0_submitted_at:
-            from .gate0 import initial_brief
-            if data.get('product_type') != initial_brief(self.food).get('product_type'):
+        if self.locked_product_type:
+            if data.get('product_type') != self.locked_product_type:
                 self.add_error('product_type','Gate 0 илгээсний дараа төрлийг өөрчлөх боломжгүй.')
-        from .target_costing import calculate
+        from .target_costing import calculate,after_writeoff_margin
         data.update(calculate(data,self.vat_percent))
+        data['day45_margin_percent']=after_writeoff_margin(data['cu_total_margin'],data.get('day45_writeoff_percent'))
         return data
 
     @property

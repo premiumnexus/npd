@@ -1,0 +1,18 @@
+{% load gate_fields %}
+<div class="gate0-field"{% if field.field.frontend_hidden %} hidden{% endif %}>
+  <label for="{{ field.id_for_label }}"><span class="field-number">{{ field.field.gate_number }}</span> {{ field.label }}{% if field.field.gate_required or field.field.required %} <span class="required-star" title="Заавал бөглөх" aria-label="Заавал бөглөх">*</span>{% endif %}</label>
+  {% gate_widget field form_id %}{{ field.errors }}
+  {% if field.name == 'analog_skus_sales_target' %}
+    {% with oldfiles=form.legacy_analog_files %}{% if oldfiles %}
+      <details><summary>Өмнөх SKU файлууд</summary>{% for item in oldfiles %}<a class="attachment-link" href="{{ item.download_url }}">{{ item.original_filename }}</a>{% endfor %}</details>
+    {% endif %}{% endwith %}
+  {% elif field.name == 'evidence' %}
+    {% with oldfiles=form.legacy_evidence_files %}{% if oldfiles %}
+      <details><summary>Өмнөх хэрэглэгчийн нотолгоо</summary>{% for item in oldfiles %}<a class="attachment-link" href="{{ item.download_url }}">{{ item.original_filename }}</a>{% endfor %}</details>
+    {% endif %}{% endwith %}
+  {% elif field.name == 'competitor_benchmark' %}
+    {% with oldfiles=form.legacy_competitor_files %}{% if oldfiles %}
+      <details><summary>Өмнөх жишиг бүтээгдэхүүний файлууд</summary>{% for item in oldfiles %}<a class="attachment-link" href="{{ item.download_url }}">{{ item.original_filename }}</a>{% endfor %}</details>
+    {% endif %}{% endwith %}
+  {% endif %}
+</div>

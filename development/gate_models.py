@@ -68,7 +68,9 @@ class Gate0(GateRecord):
     moq = models.DecimalField('Захиалгын доод хэмжээ (MOQ)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
     first_capacity_check = models.CharField('Хүчин чадлын анхны үнэлгээ', null=True, blank=True, max_length=200)
     capacity_units_day = models.DecimalField('Хүчин чадал (ширхэг / өдөр)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
+    # Preserve historical day values; the Gate 0 form now collects hours.
     shelf_life_days = models.BigIntegerField('Хадгалах хугацаа (хоног, шаардлагатай бол)', null=True, blank=True, validators=[MinValueValidator(1)])
+    shelf_life_hours = models.BigIntegerField('Хадгалах хугацаа (цаг)', null=True, blank=True, validators=[MinValueValidator(1)])
     technical_risk_measure = models.TextField('Шинжилгээ, хэмжилтээр шалгах технологийн эрсдэл', null=True, blank=True)
     day45_success_criteria = models.DecimalField('45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
     day45_writeoff_percent = models.DecimalField('45 хоногийн акт (өртгийн %)', null=True, blank=True, max_digits=14, decimal_places=1, validators=[MinValueValidator(0), MaxValueValidator(100)])
@@ -320,7 +322,21 @@ class Gate3LessonTag(OrderedGateItem):
         )]
 
 
+class Gate0Evidence(OrderedGateItem):
+    gate = models.ForeignKey('Gate0', on_delete=models.CASCADE, db_column='development_id', related_name='evidence')
+    attachment = models.ForeignKey('Gate0File', on_delete=models.SET_NULL, null=True, blank=True, related_name='evidence_rows')
+    customer_need_evidence = models.TextField('Хэрэглээний нотолгоо', null=True, blank=True)
+    evidence_level = models.CharField('Нотолгооны төрөл', null=True, blank=True, max_length=200)
+    evidence_reference = models.TextField('Нотолгооны эх сурвалж', null=True, blank=True)
+
+    class Meta:
+        db_table = 'development_gate0_evidence'
+        ordering = ['position', 'pk']
+        constraints = [models.UniqueConstraint(fields=['gate', 'position'], name='gate0_evidence_position')]
+
+
 class Gate0Competitor(OrderedGateItem):
+    attachment = models.ForeignKey('Gate0File', on_delete=models.SET_NULL, null=True, blank=True, related_name='competitor_rows')
     gate = models.ForeignKey(
         'Gate0', on_delete=models.CASCADE, db_column='development_id',
         related_name='competitor_benchmark',
@@ -338,6 +354,7 @@ class Gate0Competitor(OrderedGateItem):
 
 
 class Gate0AnalogSKU(OrderedGateItem):
+    attachment = models.ForeignKey('Gate0File', on_delete=models.SET_NULL, null=True, blank=True, related_name='analog_rows')
     gate = models.ForeignKey(
         'Gate0', on_delete=models.CASCADE, db_column='development_id',
         related_name='analog_skus_sales_target',

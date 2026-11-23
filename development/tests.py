@@ -19,6 +19,7 @@ def valid_gate0():
         'analog_skus_sales_target':[{'sku':'SKU1','units_per_store_day':'10'},{'sku':'SKU2','units_per_store_day':'12'}],
         'target_units_store_day':'15','store_scope':'all','store_count':'20',
         'raw_materials_supply_risk':'no','new_supplier':'no','seasonal_price_swing':'yes','moq':'100',
+        'first_food_safety_risk':['milk'],'high_risk_inputs':['rice'],
         'first_capacity_check':'available','capacity_units_day':'500','day45_success_criteria':'15',
         'day45_writeoff_percent':'5','day45_margin_percent':'30','planned_launch_date':'2027-05-01',
     }
@@ -529,7 +530,7 @@ class DevelopmentTests(TestCase):
         self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
         start=datetime(2026,11,5,0,0,tzinfo=dt_timezone.utc)
         with patch('django.utils.timezone.now',return_value=start):
-            response=self.client.post('/food/new/',{})
+            response=self.client.post('/food/new/',valid_gate0())
         food=Food.objects.get(pk=int(response.url.rstrip('/').split('/')[-1]))
         url='/food/%s/'%food.pk
         with patch('django.utils.timezone.now',return_value=start+timedelta(hours=2)):
@@ -828,10 +829,10 @@ class DevelopmentTests(TestCase):
         self.assertTrue(Gate1Form(saved,food=self.food).is_valid())
         self.assertFalse(Gate1Form({'fridge_check_date':'2027-02-30'},food=self.food).is_valid())
 
-    def test_gate0_all_fields_optional_at_creation_and_submission(self):
+    def test_gate0_partial_drafts_allowed_but_identity_required_for_submission(self):
         from .gate0 import Gate0Form,initial_brief
         for data in [{},{'product_type':'improvement'},{'store_scope':'cluster'},{'evidence_level':'C'},{'competitor_benchmark':[{'product':'Only a name'}]}]:
-            form=Gate0Form(data,submission=True)
+            form=Gate0Form(data)
             self.assertTrue(form.is_valid(),form.errors)
             self.assertTrue(all(not field.required for field in form.fields.values()))
         self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
@@ -841,7 +842,111 @@ class DevelopmentTests(TestCase):
         self.assertEqual(initial_brief(food)['product_type'],'')
         self.client.post('/food/%s/'%food.pk,{'action':'submit'})
         food.refresh_from_db()
-        self.assertEqual(food.review_status,'manager')
+        self.assertEqual(food.review_status,'draft')
+        self.assertIsNone(food.gate0_submitted_at)
+
+    def test_gate0_each_identity_field_required_but_launch_date_optional(self):
+        from .gate0 import Gate0Form,save_brief
+        data={key:value for key,value in valid_gate0().items() if key in Gate0Form.required_keys}
+        self.assertTrue(Gate0Form(data,submission=True).is_valid())
+        self.assertTrue(Gate0Form({**data,'product_type':'improvement'},submission=True).is_valid())
+        self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
+        for key in Gate0Form.required_keys:
+            with self.subTest(field=key):
+                incomplete={**data,key:''}
+                form=Gate0Form(incomplete,submission=True)
+                self.assertFalse(form.is_valid())
+                self.assertIn(key,form.errors)
+                save_brief(self.food,incomplete)
+                self.client.post('/food/%s/'%self.food.pk,{'action':'submit'})
+                self.food.refresh_from_db()
+                self.assertEqual(self.food.review_status,'draft')
+                self.assertIsNone(self.food.gate0_submitted_at)
+        save_brief(self.food,data)
+        self.client.post('/food/%s/'%self.food.pk,{'action':'submit'})
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.review_status,'manager')
+
+    def test_gate0_identity_group_order_numbering_and_required_stars(self):
+        from .gate0 import Gate0Form
+        self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
+        response=self.client.get('/food/new/')
+        html=response.content.decode()
+        group=html.split('<fieldset class="gate0-identity"',1)[1].split('</fieldset>',1)[0]
+        self.assertEqual(group.count('class="required-star"'),5)
+        form=response.context['form']
+        positions=[group.index('id="id_%s"'%key) for key in Gate0Form.identity_keys]
+        self.assertEqual(positions,sorted(positions))
+        for index,key in enumerate(Gate0Form.identity_keys,1):
+            self.assertEqual(form.fields[key].gate_number,f'1.{index}')
+        self.assertNotIn('id="id_existing_sku"',group)
+
+    def test_gate0_approval_cannot_advance_incomplete_legacy_brief(self):
+        self.food.review_status='manager';self.food.save()
+        self.user.groups.add(Group.objects.get(name='Fresh Food Manager'))
+        self.client.post('/food/%s/'%self.food.pk,{'action':'approve'})
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.stage,'gate0')
+        self.assertEqual(self.food.review_status,'manager')
+
+    def test_gate0_customer_section_order_numbers_and_required_stars(self):
+        from .gate0 import Gate0Form
+        self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
+        for url in ['/food/new/','/food/%s/'%self.food.pk]:
+            with self.subTest(url=url):
+                response=self.client.get(url)
+                html=response.content.decode()
+                group=html.split('<fieldset class="gate0-identity gate0-customer"',1)[1].split('</fieldset>',1)[0]
+                self.assertIn('<legend>Хэрэглэгч ба нотолгоо</legend>',group)
+                self.assertIn('<small><em>Хэнд, хэзээ, яагаад?</em></small>',group)
+                self.assertEqual(group.count('class="required-star"'),2)
+                form=response.context['form'] if url=='/food/new/' else response.context['gate0form']
+                positions=[]
+                for index,key in enumerate(Gate0Form.customer_keys,1):
+                    self.assertEqual(form.fields[key].gate_number,f'2.{index}')
+                    self.assertEqual(form.fields[key].gate_required,key in ('customer_segment','daypart'))
+                    positions.append(group.index('for="id_%s"'%key))
+                self.assertEqual(positions,sorted(positions))
+                self.assertLess(html.index('<legend>Бүтээгдэхүүн</legend>'),html.index('<legend>Хэрэглэгч ба нотолгоо</legend>'))
+                self.assertIn('name="evidence-0-file"',group)
+                self.assertNotIn('name="competitor_benchmark-0-product"',group)
+
+    def test_gate0_customer_requirements_block_submit_and_legacy_approval(self):
+        from .gate0 import Gate0Form,save_brief
+        self.user.groups.add(Group.objects.get(name='Category Manager (MD)'),Group.objects.get(name='Fresh Food Manager'))
+        complete={key:value for key,value in valid_gate0().items() if key in Gate0Form.required_keys}
+        self.assertTrue(Gate0Form(complete,submission=True).is_valid())
+        for key in ('customer_segment','daypart'):
+            for blank in ('',[]):
+                if key=='customer_segment' and blank==[]: continue
+                with self.subTest(field=key,blank=blank):
+                    incomplete={**complete,key:blank}
+                    self.assertTrue(Gate0Form(incomplete).is_valid())
+                    validation=Gate0Form(incomplete,submission=True)
+                    self.assertFalse(validation.is_valid())
+                    self.assertIn(key,validation.errors)
+                    self.food.review_status='draft';self.food.save()
+                    save_brief(self.food,incomplete)
+                    self.client.post('/food/%s/'%self.food.pk,{'action':'submit'})
+                    self.food.refresh_from_db()
+                    self.assertEqual(self.food.review_status,'draft')
+                    self.food.review_status='manager';self.food.save()
+                    self.client.post('/food/%s/'%self.food.pk,{'action':'approve'})
+                    self.food.refresh_from_db()
+                    self.assertEqual(self.food.stage,'gate0')
+                    self.assertEqual(self.food.review_status,'manager')
+
+    def test_gate0_returned_legacy_brief_can_fill_missing_route(self):
+        from django.utils import timezone
+        from .gate0 import Gate0Form,initial_brief,save_brief
+        self.food.gate0_submitted_at=timezone.now();self.food.save()
+        data=valid_gate0()
+        form=Gate0Form(data,initial=initial_brief(self.food),food=self.food,submission=True)
+        self.assertFalse(form.fields['product_type'].disabled)
+        self.assertTrue(form.is_valid(),form.errors)
+        save_brief(self.food,form.cleaned_data)
+        locked=Gate0Form(initial=initial_brief(self.food),food=self.food)
+        self.assertTrue(locked.fields['product_type'].disabled)
 
     def test_gate0_numeric_bounds_and_whole_tugrik_price(self):
         from .gate0 import Gate0Form
@@ -1398,7 +1503,7 @@ class DevelopmentTests(TestCase):
                     self.assertEqual(Gate0File.objects.filter(development=self.food,slot_code=key).count(),2)
                 self.user.groups.clear()
                 response=self.client.get('/food/%s/' % self.food.pk)
-                self.assertEqual(len(response.context['gate0slots']),4)
+                self.assertEqual(len(response.context['gate0slots']),len(FILE_SLOTS))
                 self.assertContains(response,'evidence-1.bin')
                 self.assertNotContains(response,'name="slot_file"')
                 for slot in response.context['gate0slots']:
@@ -1407,13 +1512,13 @@ class DevelopmentTests(TestCase):
 
     def test_gate0_file_slots_on_creation(self):
         self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
-        self.assertContains(self.client.get('/food/new/'),'name="G0-F4"')
+        self.assertContains(self.client.get('/food/new/'),'name="analog_skus_sales_target-0-file"')
         with tempfile.TemporaryDirectory() as media:
             with self.settings(MEDIA_ROOT=media):
-                response=self.client.post('/food/new/',{'product_type':'new','product_name':'Brief with file','G0-F3':SimpleUploadedFile('concept.pdf',b'concept')})
+                response=self.client.post('/food/new/',{'product_type':'new','product_name':'Brief with file','evidence-TOTAL_FORMS':'1','evidence-0-file':SimpleUploadedFile('evidence.pdf',b'evidence')})
                 self.assertEqual(response.status_code,302)
                 food=Food.objects.get(name='Brief with file')
-                self.assertEqual(food.gate0_files.get(slot_code='G0-F3').original_filename,'concept.pdf')
+                self.assertEqual(food.gate0_files.get(slot_code='G0-F1').original_filename,'evidence.pdf')
 
     def test_gate0_typed_draft_fields_save_and_ignore_cogs_input(self):
         from .gate0 import initial_brief

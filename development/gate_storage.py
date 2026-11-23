@@ -16,7 +16,7 @@ SELECTIONS = {
     3: {'lesson_tags': 'Gate3LessonTag'},
 }
 ROWS = {
-    0: {'competitor_benchmark': 'Gate0Competitor', 'analog_skus_sales_target': 'Gate0AnalogSKU',
+    0: {'evidence': 'Gate0Evidence', 'competitor_benchmark': 'Gate0Competitor', 'analog_skus_sales_target': 'Gate0AnalogSKU',
         'cannibalisation': 'Gate0Cannibalisation'},
     1: {'raw_material_spec_price_moq_second_source': 'Gate1Material'},
 }
@@ -91,9 +91,9 @@ def persist(registry, alias, gate, development_id, payload):
                 data = {}
                 for field in scalar_fields(child):
                     try:
-                        data[field.name] = coerce(field, source.get(field.name))
+                        data[field.attname] = coerce(field, source.get(field.name))
                     except (ValidationError, ValueError, TypeError, InvalidOperation, OverflowError):
-                        data[field.name] = None
+                        data[field.attname] = None
                         issues.append({'field': name, 'position': position, 'column': field.name, 'reason': 'invalid_scalar'})
                 if selection and data.get('value') is None:
                     continue
@@ -132,7 +132,7 @@ def read_record(gate, record):
             child = apps.get_model('development', name)
             rows = child.objects.filter(gate_id=record.pk).order_by('position', 'pk')
             values[key] = [item.value for item in rows] if selection else [
-                {field.name: serialize(getattr(item, field.name)) for field in scalar_fields(child)} for item in rows]
+                {field.name: serialize(getattr(item, field.attname)) for field in scalar_fields(child)} for item in rows]
     legacy = {}
     for archive in apps.get_model('development', 'GateDataArchive').objects.filter(gate='gate%s' % gate, development_id=record.pk).order_by('pk'):
         try:

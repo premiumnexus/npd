@@ -81,7 +81,17 @@ Authenticated users can browse developments, comment and download files. Uploadi
 
 ## Gate inputs and costing
 
-Gate 0-3 inputs are optional, but supplied numbers, dates and choices must be valid. Repeat rows may be partial. Gate 0's new/improvement route locks after its first submission. Product category is independently FF or ISF. Dropdowns use configured options and supported user-added choices.
+Draft inputs are optional, but supplied numbers, dates and choices must be valid. Gate 0 requires product name, new/improvement, category, subcategory, product role, customer segment, at least one daypart, shelf price, CU margin, rebate, vendor margin, target APSD, producer, new supplier status, new raw material status, allergens and high-risk ingredients before submission or approval. Product fields appear together as 1.1–1.6; planned launch date stays optional. The next section, Хэрэглэгч ба нотолгоо, contains customer segment (2.1), optional customer/occasion description (2.2), dayparts (2.3) and optional evidence rows with attachments (2.4). Required fields have an asterisk. Other Gate 0–3 inputs are optional. Repeat rows may be partial. Gate 0's new/improvement route locks after its first submission. Product category is independently FF or ISF. Dropdowns use configured options and supported user-added choices.
+
+The third Gate 0 section, Үнэ ба ашиг, contains competitor benchmark rows with a per-row image/price attachment column (3.1), required shelf price (3.2), configured VAT (3.3), required CU margin (3.4), required rebate including zero (3.5), required vendor margin (3.6), and calculated outputs (3.7–3.10). Drafts may omit these inputs, but submission and approval require all four pricing values.
+
+The fourth Gate 0 section, Борлуулалтын зорилт, contains optional analog SKU rows with a current-SKU attachment column for each row (4.1), required target APSD (4.2), store scope (4.3), cluster (4.4), store count (4.5), cannibalisation rows (4.6), writeoff percentage (4.7) and calculated margin after writeoff (4.8 = 3.9 − 4.7). SKU attachments use G0-F4 storage and stay linked when rows are edited or renumbered. Earlier section-level uploads remain available in SKU file history. The margin updates while editing and is recalculated on the server; missing source values leave it blank.
+
+The fifth Gate 0 section, Үйлдвэрлэл ба нийлүүлэлт, contains required producer (5.1), new supplier yes/no (5.2), new raw materials yes/no (5.3), optional seasonal price swing (5.4), MOQ (5.5), supplier capacity assessment (5.6) and supplier units/day capacity (5.7). A No answer satisfies the required yes/no fields. Partial drafts remain allowed; submission and approval require 5.1–5.3.
+
+The sixth Gate 0 section, Хүнсний аюулгүй байдал, requires at least one allergen selection (6.1) and one high-risk ingredient selection (6.2) before submission or approval. Shelf life in hours (6.3) and technological risk notes (6.4) are optional. Existing Gate 0 shelf-life values in days are converted to hours, while Gate 2's approved shelf life retains its existing day unit.
+
+Gate 0 uploads live in their corresponding rows: Хэрэглэгчийн нотолгоо for evidence (2.4), Жишиг бүтээгдэхүүний зураг, үнэ for each competitor (3.1), and current-SKU information for each analog SKU (4.1). The bottom upload cards are removed, and G0-F3 is retired from new uploads. Previously saved files remain downloadable, with unassigned evidence and competitor files shown in their section histories.
 
 Gate 0 calculates target costs from shelf price, CU margin, rebate, vendor margin and configured VAT. VAT is configured through Target Costing Settings, with a 10% fallback. Missing source inputs leave the affected calculated values unknown.
 

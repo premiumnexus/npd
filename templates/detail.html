@@ -1,9 +1,9 @@
 {% extends 'base.html' %}{% block content %}<a class="back" href="/">← Хөгжүүлэлтийн явц</a><div class="titlebar"><div><div class="eyebrow">FD-{{ food.pk|stringformat:'03d' }} / {{ food.category }}</div><h1>{{ food.name }}</h1>{% if food.stage != 'gate0' %}<p>{{ food.brief }}</p>{% endif %}</div></div>{% load static %}<script src="{% static 'gate-timing.js' %}?v=1" defer></script>{% include 'role_progress.html' %}<nav class="steps" aria-label="Gate navigation">{% for gate in timing.gates %}<a href="{% url 'detail' food.pk %}?gate={{ gate.key }}" class="{% if view_stage == gate.key %}current{% endif %}" {% if view_stage == gate.key %}aria-current="page"{% endif %}><span>{{ forloop.counter }} / 5{% if food.stage == gate.key %} &middot; &#1054;&#1076;&#1086;&#1086;&#1075;&#1080;&#1081;&#1085;{% endif %}</span>{{ gate.label }}<small class="gate-entered">{% if gate.entered_at %}{{ gate.entered_at|date:'Y-m-d H:i' }}{% else %}&#1061;&#1091;&#1075;&#1072;&#1094;&#1072;&#1072; &#1073;&#1199;&#1088;&#1090;&#1075;&#1101;&#1075;&#1076;&#1101;&#1101;&#1075;&#1199;&#1081;{% endif %}</small>{% if gate.elapsed %}<small {% if gate.running %}data-elapsed-start="{{ gate.entered_at|date:'c' }}"{% endif %}>{{ gate.elapsed }}</small>{% endif %}</a>{% endfor %}</nav><div class="detailgrid"><div>
 {% if view_stage == 'gate0' %}
 <section class="panel padded"><h2>Gate 0</h2>
-<form method="post">{% csrf_token %}{% include 'gate0_fields.html' with form=gate0form %}
+<form method="post" enctype="multipart/form-data">{% csrf_token %}{% include 'gate0_fields.html' with form=gate0form %}
 {% if editable %}<button class="button" name="action" value="gate0_save">&#1061;&#1072;&#1076;&#1075;&#1072;&#1083;&#1072;&#1093;</button>{% endif %}</form>
-{% include 'gate0_file_slots.html' %}</section>
+</section>
 {% elif view_stage == 'gate1' %}{% include 'gate1_form.html' %}
 {% elif view_stage == 'gate2' %}{% include 'gate2_form.html' %}
 {% elif view_stage == 'gate3' %}{% include 'gate3_form.html' %}

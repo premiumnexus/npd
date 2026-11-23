@@ -53,7 +53,8 @@ class BaselineDefaultsTests(TestCase):
 class BaselineSchemaTests(TransactionTestCase):
     def test_unapply_and_recreate_the_complete_schema(self):
         target = [('development', '0001_baseline')]
-        self.addCleanup(lambda: MigrationExecutor(connection).migrate(target))
+        latest = MigrationExecutor(connection).loader.graph.leaf_nodes('development')
+        self.addCleanup(lambda: MigrationExecutor(connection).migrate(latest))
         MigrationExecutor(connection).migrate([('development', None)])
         self.assertNotIn('development_food', connection.introspection.table_names())
         executor = MigrationExecutor(connection)

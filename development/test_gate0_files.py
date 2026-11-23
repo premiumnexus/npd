@@ -78,7 +78,7 @@ class Gate0FileStorageTests(TestCase):
         self.assertEqual(response.url, reverse('detail', args=[development.pk]))
         records = list(Gate0File.objects.filter(development_id=development.pk))
         self.assertEqual({record.slot_code for record in records}, {slot for slot, _ in FILE_SLOTS})
-        self.assertEqual(len(records), 4)
+        self.assertEqual(len(records), len(FILE_SLOTS))
         self.assertFalse(Gate0File.objects.filter(development_id=self.development.pk).exists())
         for model in (Gate0, Gate1, Gate2, Gate3):
             self.assertEqual(model.objects.get(development_id=development.pk).pk, development.pk)
@@ -91,14 +91,14 @@ class Gate0FileStorageTests(TestCase):
         for slot, _ in FILE_SLOTS:
             for version in (1, 2):
                 self.assertEqual(self.upload(slot=slot, name='same-name.pdf', body=('%s version %s' % (slot, version)).encode('ascii')).status_code, 302)
-        self.assertEqual(Gate0File.objects.filter(development_id=self.development.pk).count(), 8)
-        self.assertEqual(len(set(self.development.gate0_files.values_list('file', flat=True))), 8)
+        self.assertEqual(Gate0File.objects.filter(development_id=self.development.pk).count(), 2*len(FILE_SLOTS))
+        self.assertEqual(len(set(self.development.gate0_files.values_list('file', flat=True))), 2*len(FILE_SLOTS))
         self.assertFalse(self.development.activities.exclude(attachment='').exists())
         self.user.groups.clear()
         page = self.client.get(self.url)
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, 'name="slot_file"')
-        self.assertEqual(len(page.context['gate0slots']), 4)
+        self.assertEqual(len(page.context['gate0slots']), len(FILE_SLOTS))
         for slot in page.context['gate0slots']:
             self.assertEqual(len(slot['files']), 2)
             for record in slot['files']:
@@ -136,12 +136,23 @@ class Gate0FileStorageTests(TestCase):
         self.assertFalse(self.development.activities.exists())
 
     def test_invalid_slots_and_empty_uploads_do_not_create_file_records(self):
-        for slot in ('unknown', 'G1-F1', 'G2-F1'):
+        for slot in ('unknown', 'G0-F3', 'G1-F1', 'G2-F1'):
             self.assertEqual(self.upload(slot=slot).status_code, 403)
         self.assertEqual(self.upload(body=b'').status_code, 302)
         self.assertEqual(self.client.post(self.url, {'action': 'slot_upload', 'slot': 'G0-F1'}).status_code, 302)
         self.assertFalse(Gate0File.objects.exists())
         self.assertFalse(self.development.activities.exists())
+
+    def test_retired_concept_slot_rejects_new_uploads_but_retains_old_downloads(self):
+        record=Gate0File.objects.create(development=self.development,slot_code='G0-F3',
+            file=SimpleUploadedFile('old-concept.pdf',b'historical concept'),
+            original_filename='old-concept.pdf',uploader=self.user)
+        self.assertEqual(self.upload(slot='G0-F3').status_code,403)
+        self.assertEqual(Gate0File.objects.filter(slot_code='G0-F3').count(),1)
+        self.assertEqual(self.read_download(reverse('download_gate0_file',args=[record.pk])),b'historical concept')
+        page=self.client.get(self.url)
+        self.assertNotContains(page,'name="G0-F3"')
+        self.assertNotContains(page,'id="file-G0-F3"')
 
     def test_dedicated_and_legacy_downloads_preserve_authentication_and_bytes(self):
         earlier = Activity.objects.create(food=self.development, actor=self.user, text='Earlier activity')

@@ -6,7 +6,9 @@ from .cogs_widgets import COGSStatusWidget
 def gate0_targets(food):
     from .gate0 import initial_brief
     data=initial_brief(food) if food else {}
-    return {'day45_units_store_day':data.get('day45_success_criteria'), 'day45_writeoff_percent':data.get('day45_writeoff_percent'),'day45_margin_percent':data.get('day45_margin_percent'),'original_launch_date':data.get('planned_launch_date')}
+    apsd=data.get('target_units_store_day')
+    if apsd in (None,''): apsd=data.get('day45_success_criteria')
+    return {'day45_units_store_day':apsd, 'day45_writeoff_percent':data.get('day45_writeoff_percent'),'day45_margin_percent':data.get('day45_margin_percent'),'original_launch_date':data.get('planned_launch_date')}
 
 def derived_values(food,typed_cogs,launch_date,vendor_invoice_price=None):
     from .gate1 import initial_brief
