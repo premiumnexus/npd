@@ -1,9 +1,13 @@
+import hashlib
+
+from django import forms
 from django.contrib import admin
 from django.utils import timezone
 from django.utils.html import format_html
 from .models import Food, Supplier, Ingredient, RecipeLine, Activity, GateAccess, Gate0, Gate1, Gate2, Gate3, Gate0Option, PackagingType, COGSComparisonPolicy, LaunchCheckpoint, GateTransition
 from .forms import LABELS
 from .models import TargetCostingSettings
+from .models import SharedDropdownOption
 from .models import Gate0File, Gate1File, Gate2File, Gate3File
 from .models import (
     GateDataArchive, Gate0ImprovementReason, Gate0Daypart, Gate0Allergen,
@@ -266,6 +270,56 @@ class Gate0OptionAdmin(admin.ModelAdmin):
     list_filter=['kind','category','active']
     search_fields=['code','label']
     list_editable=['label','active','order']
+
+
+class SharedDropdownOptionAdminForm(forms.ModelForm):
+    class Meta:
+        model = SharedDropdownOption
+        fields = ['label']
+        labels = {'label': 'Сонголтын нэр'}
+        help_texts = {'label': 'Өөрчлөлт нь жагсаалтын сонголтыг шинэчилнэ. Өмнө хадгалсан бүртгэлийн утга өөрчлөгдөхгүй.'}
+
+    def clean_label(self):
+        label = ' '.join(self.cleaned_data['label'].split())
+        if not label or label == '__add_option__':
+            raise forms.ValidationError('Сонголтын нэрийг зөв оруулна уу.')
+        if self.instance.field == 'category' and len(label) > 80:
+            raise forms.ValidationError('Ангиллын нэр 80 тэмдэгтээс ихгүй байна.')
+        key = hashlib.sha256(label.casefold().encode('utf-8')).hexdigest()
+        if SharedDropdownOption.objects.filter(
+            stage=self.instance.stage, field=self.instance.field,
+            scope=self.instance.scope, label_key=key,
+        ).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError('Ижил нэртэй сонголт байна.')
+        self.instance.label_key = key
+        return label
+
+
+@admin.register(SharedDropdownOption)
+class SharedDropdownOptionAdmin(admin.ModelAdmin):
+    form = SharedDropdownOptionAdminForm
+    list_display = ['label', 'stage', 'field', 'scope']
+    list_filter = ['stage', 'field', 'scope']
+    search_fields = ['label', 'field', 'scope']
+    fields = ['stage', 'field', 'scope', 'label']
+    readonly_fields = ['stage', 'field', 'scope']
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_change_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_add_permission(self, request):
+        return False
+
+
 @admin.register(GateAccess)
 class GateAccessAdmin(admin.ModelAdmin):
     list_display = ['group','stage','can_edit','can_submit','can_qa_accept','can_manager_decide','can_director_decide']

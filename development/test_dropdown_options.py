@@ -1,17 +1,19 @@
 import json
+import hashlib
 from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.template.loader import render_to_string
 from django.test import Client, TestCase
 from django.utils import timezone
+from django.urls import reverse
 
 from .gate0_typed import Gate0Form
 from .gate1_typed import Gate1Form, MaterialRow
 from .models import Food, SharedDropdownOption
 
 
-class SharedDropdownTests(TestCase):
+class SharedDropdownTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser('options-admin', password='test')
         self.client.force_login(self.user)
@@ -22,6 +24,8 @@ class SharedDropdownTests(TestCase):
         payload.update(values)
         return self.client.post('/api/dropdown-options/', json.dumps(payload), content_type='application/json')
 
+
+class SharedDropdownTests(SharedDropdownTestCase):
     def test_saved_option_available_to_another_user_and_valid_on_submit(self):
         response = self.add()
         self.assertEqual(response.status_code, 201)
@@ -186,3 +190,61 @@ class SharedDropdownTests(TestCase):
         food = Food.objects.get(name='Multi dayparts')
         self.assertEqual(initial_brief(food)['daypart'], ['morning', 'New occasion'])
         self.assertContains(self.client.get(result.url), 'data-multiselect')
+
+
+class SharedDropdownAdminTests(SharedDropdownTestCase):
+    def setUp(self):
+        super().setUp()
+        self.add(label='Typo occasion')
+        self.option = SharedDropdownOption.objects.get()
+        self.list_url = reverse('admin:development_shareddropdownoption_changelist')
+        self.change_url = reverse('admin:development_shareddropdownoption_change', args=[self.option.pk])
+        self.delete_url = reverse('admin:development_shareddropdownoption_delete', args=[self.option.pk])
+
+    def test_superuser_can_find_rename_and_delete_added_option(self):
+        self.assertContains(self.client.get(self.list_url, {'q': 'Typo'}), 'Typo occasion')
+        response = self.client.post(self.change_url, {'label': '  Correct   occasion ', '_save': 'Save'})
+        self.assertEqual(response.status_code, 302)
+        self.option.refresh_from_db()
+        self.assertEqual(self.option.label, 'Correct occasion')
+        self.assertEqual(self.option.label_key, hashlib.sha256(b'correct occasion').hexdigest())
+        self.assertIn(('Correct occasion', 'Correct occasion'), Gate0Form().fields['daypart'].choices)
+        self.assertNotIn(('Typo occasion', 'Typo occasion'), Gate0Form().fields['daypart'].choices)
+        self.assertEqual(self.add(label='CORRECT occasion').status_code, 200)
+        self.assertEqual(self.add(label='Typo occasion').status_code, 201)
+        self.assertEqual(self.client.post(self.delete_url, {'post': 'yes'}).status_code, 302)
+        self.assertNotIn(('Correct occasion', 'Correct occasion'), Gate0Form().fields['daypart'].choices)
+
+    def test_rejects_duplicates_reserved_values_and_category_overflow(self):
+        self.add(label='Existing occasion')
+        for label in [' existing   OCCASION ', '__add_option__', '   ']:
+            response = self.client.post(self.change_url, {'label': label, '_save': 'Save'})
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.context['adminform'].form.errors)
+            self.option.refresh_from_db()
+            self.assertEqual(self.option.label, 'Typo occasion')
+        self.add(field='category', label='Custom category')
+        category = SharedDropdownOption.objects.get(field='category')
+        response = self.client.post(reverse('admin:development_shareddropdownoption_change', args=[category.pk]),
+                                    {'label': 'x' * 81, '_save': 'Save'})
+        self.assertTrue(response.context['adminform'].form.errors)
+
+    def test_staff_with_model_permissions_cannot_manage_options(self):
+        from django.contrib.auth.models import Permission
+        staff = User.objects.create_user('option-staff', password='test', is_staff=True)
+        staff.user_permissions.set(Permission.objects.filter(content_type__model='shareddropdownoption'))
+        self.client.force_login(staff)
+        self.assertNotContains(self.client.get(reverse('admin:index')), self.list_url)
+        for url in [self.list_url, self.change_url, self.delete_url,
+                    reverse('admin:development_shareddropdownoption_add')]:
+            self.assertEqual(self.client.get(url).status_code, 403)
+            self.assertEqual(self.client.post(url, {'label': 'Forbidden', 'post': 'yes'}).status_code, 403)
+        self.option.refresh_from_db()
+        self.assertEqual(self.option.label, 'Typo occasion')
+
+    def test_stage_field_and_scope_cannot_be_changed(self):
+        response = self.client.post(self.change_url, {'label': 'Correct occasion', 'stage': 'gate3',
+                                                     'field': 'root_cause', 'scope': 'FF', '_save': 'Save'})
+        self.assertEqual(response.status_code, 302)
+        self.option.refresh_from_db()
+        self.assertEqual((self.option.stage, self.option.field, self.option.scope), ('gate0', 'daypart', ''))
