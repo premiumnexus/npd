@@ -1,7 +1,7 @@
 <div class="repeat-row">
   {% if row.file %}
-    {% for field in row.visible_fields %}<p>{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.name == 'file' and row.existing_attachment %}<a class="attachment-link" href="{% url 'download_gate0_file' row.existing_attachment.pk %}">{{ row.existing_attachment.original_filename }}</a>{% endif %}{% if field.name == 'evidence_level' %}<small id="{{ field.auto_id }}_reminder" class="field-reminder" data-evidence-reminder aria-live="polite"{% if field.value %} hidden{% endif %}>Төрөл сонгогдоогүй байна</small>{% endif %}</p>{% endfor %}
+    {% for field in row.visible_fields %}<p>{{ field.label_tag }}{{ field }}{{ field.errors }}{% if field.name == 'file' and row.existing_attachment %}<a class="attachment-link" href="{{ row.existing_attachment.download_url }}">{{ row.existing_attachment.original_filename }}</a>{% endif %}{% if field.name == 'evidence_level' %}<small id="{{ field.auto_id }}_reminder" class="field-reminder" data-evidence-reminder aria-live="polite"{% if field.value %} hidden{% endif %}>Төрөл сонгогдоогүй байна</small>{% endif %}</p>{% endfor %}
     {% for field in row.hidden_fields %}{{ field }}{% endfor %}
   {% else %}{{ row.as_p }}{% endif %}
-  {% if not widget.disabled %}<label><input type="checkbox" name="{{ row.prefix }}-DELETE" value="1"> Мөр хасах</label>{% endif %}
+  {% if not widget.disabled %}<label><input type="checkbox" name="{{ row.prefix }}-DELETE" value="1"{% if widget.attrs.form %} form="{{ widget.attrs.form }}"{% endif %}> Мөр хасах</label>{% endif %}
 </div>

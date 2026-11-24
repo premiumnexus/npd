@@ -1,12 +1,14 @@
 from django import forms
 
 class AttachmentRow(forms.Form):
+    attachment_model='Gate0File'
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        from .models import Gate0File
+        from django.apps import apps
+        attachment_model=apps.get_model('development',self.attachment_model)
         attachment=self.initial.get('attachment')
         try:
-            self.existing_attachment=Gate0File.objects.filter(pk=attachment).first() if attachment else None
+            self.existing_attachment=attachment_model.objects.filter(pk=attachment).first() if attachment else None
         except (TypeError,ValueError,OverflowError):
             self.existing_attachment=None
 
@@ -67,12 +69,14 @@ class RowsWidget(forms.Widget):
         context=super().get_context(name,value,attrs)
         values=value if isinstance(value,list) else []
         values=values or [{}]
-        disabled=bool((attrs or {}).get('disabled'))
+        render_attrs=context['widget']['attrs']
+        disabled=bool(render_attrs.get('disabled'))
         def row(data,prefix):
             form=self.row_form(initial=data,prefix=prefix)
             for field in form.fields.values():
                 field.required=False
                 field.disabled=disabled
+                if render_attrs.get('form'): field.widget.attrs['form']=render_attrs['form']
             return form
         context['widget'].update(rows=[row(data,'%s-%s' % (name,index)) for index,data in enumerate(values)],empty=row({},name+'-__prefix__'),disabled=disabled)
         return context

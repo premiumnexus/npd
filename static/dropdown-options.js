@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!label) { input.focus(); return; }
     const select = active;
     const scope = select.dataset.optionScope || '';
-    const token = select.closest('form').querySelector('[name="csrfmiddlewaretoken"]').value;
+    const token = (select.form || select.closest('form')).querySelector('[name="csrfmiddlewaretoken"]').value;
     saving = true;
     save.disabled = true;
     error.textContent = '';

@@ -8,8 +8,11 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection
 from django.test import TestCase
 from django.urls import reverse
+from django.template.loader import render_to_string
 
 from .gate1 import file_slots, save_brief, save_slot_file
+from .gate1_typed import Gate1Form
+from .gate0_rows import RowsField
 from .gate_storage import ensure_gate_rows
 from .models import Activity, Food, Gate1
 
@@ -33,6 +36,42 @@ class Gate1MarketingFileTests(TestCase):
             'action': 'slot_upload', 'slot': slot,
             'slot_file': SimpleUploadedFile(name, body, content_type='application/pdf'),
         })
+
+    def test_marketing_section_title_subtitle_numbers_and_single_inline_file(self):
+        response=self.client.get(self.url)
+        html=response.content.decode()
+        group=html.split('<fieldset class="gate0-identity gate1-marketing"',1)[1].split('</fieldset>',1)[0]
+        self.assertIn('<legend>Нэвтрүүлэлтийн маркетинг</legend>',group)
+        self.assertIn('<small><em>Хэрэглэгчид юу гэж хэлэх вэ?</em></small>',group)
+        positions=[group.index('class="field-number">7.%s</span>'%number) for number in range(1,5)]
+        self.assertEqual(positions,sorted(positions))
+        self.assertLess(html.index('<legend>Хүнсний аюулгүй байдал ба хадгалалт</legend>'),html.index('<legend>Нэвтрүүлэлтийн маркетинг</legend>'))
+        self.assertEqual(html.count('id="file-G1-F10"'),1)
+        self.assertIn('id="file-G1-F10"',group)
+        self.assertNotIn('id="file-G1-F10"',html.split('<section class="gate0-file-slots"',1)[-1] if '<section class="gate0-file-slots"' in html else '')
+        for name in ('marketing_name','marketing_key_message','marketing_brief'):
+            self.assertEqual(html.count('id="id_%s"'%name),1)
+            self.assertIn('name="%s"'%name,group)
+
+    def test_no_duplicate_fields_or_unassigned_uploads_at_the_bottom(self):
+        response=self.client.get(self.url)
+        html=response.content.decode()
+        self.assertNotIn('class="gate0-file-slots"',html)
+        form=response.context['gate1form']
+        self.assertEqual(form.other_fields,[])
+        for field in form:
+            if field.field.disabled or isinstance(field.field,RowsField): continue
+            self.assertEqual(html.count('id="%s"'%field.auto_id),1,field.name)
+        recipe=html.split('<fieldset class="gate0-identity gate1-recipe"',1)[1].split('</fieldset>',1)[0]
+        marketing=html.split('<fieldset class="gate0-identity gate1-marketing"',1)[1].split('</fieldset>',1)[0]
+        self.assertIn('id="file-G1-F9"',recipe)
+        self.assertIn('id="file-G1-F8"',marketing)
+        for slot in file_slots(self.development):
+            if slot['key']=='G1-F4': continue
+            self.assertEqual(html.count('id="file-%s"'%slot['key']),1,slot['key'])
+        empty=render_to_string('gate0_fields.html',{'form':Gate1Form(food=self.development),'fields':[]})
+        self.assertNotIn('id="id_marketing_name"',empty)
+        self.assertNotIn('id="id_taster_count"',empty)
 
     def pointer(self, development=None):
         record = Gate1.objects.get(development_id=(development or self.development).pk)

@@ -51,7 +51,7 @@ class SharedDropdownTests(SharedDropdownTestCase):
     def test_every_gate_and_repeat_row_loads_shared_choices(self):
         from .gate2_typed import Gate2Form
         from .gate3_typed import Gate3Form
-        for stage, form_class, field in [('gate1', Gate1Form, 'capacity_constraint'),
+        for stage, form_class, field in [('gate1', Gate1Form, 'pack_material'),
                                           ('gate2', Gate2Form, 'label_checked'),
                                           ('gate3', Gate3Form, 'root_cause')]:
             self.food.stage = stage

@@ -201,9 +201,9 @@ def detail(request,pk):
                 else: return render_page()
             elif action == 'gate1_save':
                 if food.stage != 'gate1': return HttpResponseForbidden('Зөвхөн Gate 1-д засварлана.')
-                gate1form = Gate1Form(request.POST,initial=initial_gate1(food),food=food)
+                gate1form = Gate1Form(request.POST,request.FILES,initial=initial_gate1(food),food=food)
                 if gate1form.is_valid():
-                    save_gate1(food,gate1form.cleaned_data)
+                    save_gate1(food,gate1form.cleaned_data,user=request.user)
                     Activity.objects.create(food=food,actor=request.user,text='Gate 1 мэдээллийг шинэчлэв')
                 else: return render_page()
             elif action == 'gate0_save':

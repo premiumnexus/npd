@@ -55,6 +55,6 @@
 </div>
 {% else %}
 <div class="gate0-fields" data-option-food="{{ form.food.pk|default:'' }}">
-  {% for field in fields|default:form %}{% include 'gate0_field.html' %}{% endfor %}
+  {% for field in fields|fields_or_form:form %}{% include 'gate0_field.html' %}{% endfor %}
 </div>
 {% endif %}

@@ -123,6 +123,10 @@ class DevelopmentTests(TestCase):
         from decimal import ROUND_HALF_UP
         self.food.lines.all().delete()
         self.food.stage='gate1';self.food.packaging=350;self.food.save()
+        from .gate1 import save_brief as save_gate1
+        from .models import PackagingType
+        PackagingType.objects.get_or_create(code='test-pack',defaults={'name':'Test packaging'})
+        save_gate1(self.food,{'taster_count':'5','tasting_score':'4','capacity_equipment_fit':'Line A','capacity_units_day':'500','capacity_constraint':'no','packaging_label_concept':'test-pack','material_certificate':'yes','qa_requirements_issued':'yes','process_flow_ccp_issued':'yes','fridge_check_72h':'pass','tested_in_actual_packaging':'yes','fridge_check_date':'2026-11-24'})
         Gate0.objects.create(development=self.food,cogs_limit=Decimal(9000)/Decimal('1.1')*Decimal('.7')*Decimal('.98')*Decimal('.85'))
         for grams,yield_factor,price,expected in [(200,'1',4000,800),(120,'.7',16000,2743),(60,'.85',5000,353),(30,'1',8000,240)]:
             line=RecipeLine.objects.create(food=self.food,ingredient=self.ingredient,quantity=Decimal(grams)/1000,yield_factor=Decimal(yield_factor),unit_price=price)
@@ -808,7 +812,7 @@ class DevelopmentTests(TestCase):
         from .gate1 import Gate1Form
         from .models import PackagingType
         PackagingType.objects.create(code='test-pack',name='Test pack')
-        data={'raw_material_spec_price_moq_second_source':[{'material':'Chicken','spec_written':'yes','price_kg':'14500','moq':'10','second_source':'no'}],'packaging_label_concept':'test-pack','pack_size':'150g','material_certificate':'yes'}
+        data={'raw_material_spec_price_moq_second_source':[{'material':'Chicken','spec_written':'yes','price_kg':'14500','moq':'10','second_source':'no'}],'packaging_label_concept':'test-pack','pack_size':'150g','material_certificate':'yes','qa_requirements_issued':'yes','process_flow_ccp_issued':'yes','fridge_check_72h':'pass','tested_in_actual_packaging':'yes','fridge_check_date':'2026-11-24'}
         form=Gate1Form(data,food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['raw_material_spec_price_moq_second_source'][0]['price_kg'],Decimal(14500))
@@ -819,7 +823,9 @@ class DevelopmentTests(TestCase):
         from .gate1 import Gate1Form,save_brief,initial_brief
         payload={'fridge_0_texture':'Firm','fridge_0_result':'pass','fridge_72_taste':'Good','fridge_check_72h':'pass','fridge_check_date':'2027-02-02','qa_requirements_issued':'yes','process_flow_ccp_issued':'no','shelf_life_result_due':'2027-02-03'}
         form=Gate1Form(payload,food=self.food)
-        self.assertEqual([key for key,field in form.fields.items() if field.gate_number=='1.6'],['fridge_check_72h','fridge_check_date'])
+        self.assertEqual(form.fields['fridge_check_72h'].gate_number,'6.3')
+        self.assertEqual(form.fields['tested_in_actual_packaging'].gate_number,'6.4')
+        self.assertEqual(form.fields['fridge_check_date'].gate_number,'6.5')
         self.assertTrue(form.is_valid(),form.errors)
         save_brief(self.food,form.cleaned_data)
         saved=initial_brief(self.food)
@@ -1447,12 +1453,12 @@ class DevelopmentTests(TestCase):
                 slots={slot['key']:slot for slot in response.context['gate1slots']}
                 self.assertEqual(len(slots['G1-F9']['files']),2)
                 self.assertEqual(len(slots['G1-F10']['files']),1)
-                self.assertContains(response,'<span class="field-number">1.10</span> Нэвтрүүлэлтийн маркетингийн санааны файл',html=True)
+                self.assertContains(response,'<span class="field-number">7.4</span> Нэвтрүүлэлтийн маркетингийн санааны файл',html=True)
                 self.assertContains(response,'id="file-G1-F10"',count=1)
                 html=response.content.decode()
                 self.assertLess(html.index('id="id_marketing_brief"'),html.index('id="file-G1-F10"'))
                 self.assertLess(html.index('id="file-G1-F10"'),html.index('value="gate1_save"'))
-                self.assertLess(html.index('id="file-G1-F10"'),html.index('class="gate0-file-slots"'))
+                self.assertNotIn('class="gate0-file-slots"',html)
                 self.food.activities.get(attachment_slot='G1-F10').full_clean()
                 self.assertContains(response,'revised.xlsx')
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G0-F1','slot_file':SimpleUploadedFile('wrong.pdf',b'wrong gate')}).status_code,403)

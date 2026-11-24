@@ -1,5 +1,5 @@
 <div class="repeat-rows" data-prefix="{{ widget.name }}">
-  <input type="hidden" name="{{ widget.name }}-TOTAL_FORMS" value="{{ widget.rows|length }}" data-row-total>
+  <input type="hidden" name="{{ widget.name }}-TOTAL_FORMS" value="{{ widget.rows|length }}" data-row-total{% if widget.attrs.form %} form="{{ widget.attrs.form }}"{% endif %}>
   <div data-row-list>{% for row in widget.rows %}{% include 'widgets/gate0_row.html' %}{% endfor %}</div>
   {% if not widget.disabled %}<template data-row-template>{% include 'widgets/gate0_row.html' with row=widget.empty %}</template><button type="button" class="secondary" data-add-row>＋ Мөр нэмэх</button>{% endif %}
 </div>

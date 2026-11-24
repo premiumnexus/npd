@@ -101,7 +101,21 @@ Maximum invoice price = price excluding VAT * (1 - CU margin / 100)
 COGS limit = maximum invoice price * (1 - rebate / 100) * (1 - vendor margin / 100)
 ```
 
-The shared recipe editor is in Gate 1 section 1.3 and Gate 2 section 2.2. It stores ingredient quantities per finished product, ingredient yield, captured price per kg and per-product packaging cost:
+Gate 1's Жор ба өртөг section has repeatable trial records with individual files (1.1), recipe version (1.2), required ingredient rows (1.4), packaging cost (1.5), calculated COGS (1.6), Gate 0 section 3.10 limit (1.7), gap (1.8), status (1.9), manual COGS and reason (1.10), Amber/Red reason (1.11), action (1.12), and the inline supplier cost/quote file history (1.13). Drafts may be partial; submission and approval require at least one saved ingredient row with positive net weight and a valid yield. Trial decisions are Үргэлжлүүлэх, Батлагдсан and Зогсоох.
+
+Gate 1's Амт ба хэрэглэгч section contains required taster count of at least five (2.1), required internal tasting score from 1–5 (2.2), tasting record files (2.3), optional consumer test participant count (2.4), consumer liking from 1–9 (2.5), would-buy percentage (2.6) and consumer test result files (2.7). If participants are entered, 2.5 and 2.6 become required before submission or approval; a zero would-buy percentage is valid. Stars update as participants are entered or cleared. Partial draft saves remain available, and the G1-F1/G1-F2 file histories appear in this section.
+
+Gate 1's Түүхий эд section contains the repeatable material records as 3.1, with a Түүхий эдийн техникийн тодорхойлолт file column on every row. Each file stays linked to its material through edits and row removals. G1-F4 uploads are stored with the existing file history; older uploads without a row link remain visible in the material section.
+
+Gate 1's Үйлдвэрлэл section contains required production line (4.1), daily capacity (4.2), a required Yes/No constraint choice (4.3) and constraint details (4.4), required only for Yes. Missing capacity is prefilled from Gate 0 section 5.7 on display and remains editable; saving confirms the Gate 1 value before advancement. Confirmed values are not overwritten when Gate 0 changes. Historical constraint categories are preserved in the description for review.
+
+Gate 1's Савлагаа section replaces the old packaging type field with required packaging selection (5.1). Unit price (5.2) is the canonical Food packaging cost and automatically updates the read-only 1.5 display and calculated COGS. Material (5.3) and size (5.4) use shared dropdowns with + Нэмэх, preserving older text values. Certificate status (5.5) is required; new-packaging supplier, MOQ and lead days are optional details under 5.6. G1-F7 mock-up files and their history appear as 5.7.
+
+Gate 1's Хүнсний аюулгүй байдал ба хадгалалт section contains required prohibited-ingredient check (6.1), process flow/CCP requirements check (6.2), storage test result (6.3), actual-packaging check (6.4) and test date (6.5). Gate 0 section 6.3 shelf-life hours appear read-only beside the storage result. Test record/photo files (6.6), laboratory (6.7), test duration in days (6.8), result due date (6.9) and QA risk assessment files (6.10) are optional. G1-F5 and G1-F6 histories are displayed in the section, and partial draft saves remain allowed.
+
+Gate 1's Нэвтрүүлэлтийн маркетинг section contains campaign name (7.1), key message (7.2), launch marketing idea (7.3) and its file history (7.4). Product photos also live in marketing, while COGS Excel uploads live in the recipe-cost section. All Gate 1 fields and uploads are shown in their sections once; no standalone bottom field or upload area is rendered. Empty field subsets remain empty rather than falling back to the whole form.
+
+The shared recipe editor is in Gate 1 section 1.4 and Gate 2 section 2.2. It stores ingredient quantities per finished product, ingredient yield, captured price per kg and per-product packaging cost:
 
 ```text
 Ingredient cost = net grams / 1000 / ingredient yield * price per kg

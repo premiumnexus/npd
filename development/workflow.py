@@ -65,9 +65,9 @@ def transition(user,food,action,note):
         elif food.stage == 'gate1':
             from .gate1 import Gate1Form,initial_brief
             saved=initial_brief(food)
-            validation=Gate1Form(saved,initial=saved,food=food)
+            validation=Gate1Form(saved,initial=saved,food=food,submission=True)
             if not validation.is_valid():
-                return 'Оруулсан мэдээллийн төрлийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else key,', '.join(errors)) for key,errors in validation.errors.items())
+                return 'Оруулсан мэдээллийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else 'Жор ба өртөг',', '.join(errors)) for key,errors in validation.errors.items())
         elif food.stage == 'gate2':
             from .gate2 import Gate2Form,initial_brief
             saved=initial_brief(food)
@@ -100,6 +100,11 @@ def transition(user,food,action,note):
         description = 'Захирлын шийдвэрт шилжүүлэв'
     elif action == 'approve':
         if not rights['can_decide']: return 'Шийдвэр гаргах эрхгүй эсвэл хяналтын дараалал тохирохгүй байна.'
+        if food.stage == 'gate1':
+            from .gate1 import Gate1Form,initial_brief
+            saved=initial_brief(food)
+            validation=Gate1Form(saved,initial=saved,food=food,submission=True)
+            if not validation.is_valid(): return '; '.join(str(error) for errors in validation.errors.values() for error in errors)
         if food.stage == 'gate0':
             from .gate0 import Gate0Form,initial_brief
             saved=initial_brief(food)

@@ -1,17 +1,75 @@
 {% load gate_fields %}
 <section class="panel padded">
   <h2>Gate 1 · Концепц ба жор</h2>
-  {% include 'gate0_fields.html' with form=gate1form fields=gate1form|gate_sections:'1.1,1.2' form_id='gate1-brief-form' %}
+  <fieldset class="gate0-identity gate1-recipe">
+    <legend>Жор ба өртөг</legend>
+    <small><em>Зорилтот өртөгт багтаж байна уу?</em></small>
+    {% include 'gate0_fields.html' with form=gate1form fields=gate1form.intro_fields form_id='gate1-brief-form' %}
+    {% include 'gate1_calculator.html' with recipe_layout=True %}
+  </fieldset>
 </section>
-{% include 'gate1_calculator.html' with cogs_fields=gate1form|gate_sections:'1.3' %}
 <section class="panel padded">
-  <form method="post" id="gate1-brief-form">
+  <fieldset class="gate0-identity gate1-tasting" data-gate1-tasting>
+    <legend>Амт ба хэрэглэгч</legend>
+    <small><em>Хэрэглэгчдэд таалагдаж байна уу?</em></small>
+    <div class="gate0-fields">
+      {% for field in gate1form.tasting_fields %}
+        {% include 'gate0_field.html' with form=gate1form form_id='gate1-brief-form' %}
+        {% if field.name == 'tasting_score' %}{% for slot in gate1slots %}{% if slot.key == 'G1-F1' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}{% endif %}
+        {% if field.name == 'consumer_would_buy_percent' %}{% for slot in gate1slots %}{% if slot.key == 'G1-F2' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}{% endif %}
+      {% endfor %}
+    </div>
+  </fieldset>
+</section>
+{% load static %}<script src="{% static 'gate1-tasting.js' %}?v=1" defer></script>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate1-materials">
+    <legend>Түүхий эд</legend>
+    <small><em>Орцыг тогтвортой авч чадах уу?</em></small>
+    {% include 'gate0_fields.html' with form=gate1form fields=gate1form.material_fields form_id='gate1-brief-form' hide_form_messages=True %}
+  </fieldset>
+</section>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate1-production" data-gate1-production>
+    <legend>Үйлдвэрлэл</legend>
+    <small><em>Үйлдвэрт хийж чадах уу?</em></small>
+    {% include 'gate0_fields.html' with form=gate1form fields=gate1form.production_fields form_id='gate1-brief-form' hide_form_messages=True %}
+  </fieldset>
+</section>
+<script src="{% static 'gate1-production.js' %}?v=1" defer></script>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate1-packaging" data-gate1-packaging>
+    <legend>Савлагаа</legend>
+    <small><em>Ямар савлагаатай вэ?</em></small>
+    {% include 'gate0_fields.html' with form=gate1form fields=gate1form.packaging_fields form_id='gate1-brief-form' hide_form_messages=True %}
+    {% for slot in gate1slots %}{% if slot.key == 'G1-F7' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}
+  </fieldset>
+</section>
+<script src="{% static 'gate1-packaging.js' %}?v=1" defer></script>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate1-safety">
+    <legend>Хүнсний аюулгүй байдал ба хадгалалт</legend>
+    <small><em>Аюулгүй, хугацаандаа хадгалагдах уу?</em></small>
+    <div class="gate0-fields">
+      {% for field in gate1form.safety_fields %}
+        {% include 'gate0_field.html' with form=gate1form form_id='gate1-brief-form' %}
+        {% if field.name == 'fridge_check_date' %}{% for slot in gate1slots %}{% if slot.key == 'G1-F5' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}{% endif %}
+      {% endfor %}
+      {% for slot in gate1slots %}{% if slot.key == 'G1-F6' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}
+    </div>
+  </fieldset>
+</section>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate1-marketing">
+    <legend>Нэвтрүүлэлтийн маркетинг</legend>
+    <small><em>Хэрэглэгчид юу гэж хэлэх вэ?</em></small>
+    {% include 'gate0_fields.html' with form=gate1form fields=gate1form.marketing_fields form_id='gate1-brief-form' hide_form_messages=True %}
+    {% for slot in gate1slots %}{% if slot.key == 'G1-F10' or slot.key == 'G1-F8' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}
+  </fieldset>
+</section>
+<section class="panel padded">
+  <form method="post" enctype="multipart/form-data" id="gate1-brief-form">
     {% csrf_token %}
-    {% include 'gate0_fields.html' with form=gate1form fields=gate1form|gate_sections:'1.4,1.5,1.6,1.7,1.8,1.9,1.10' hide_form_messages=True %}
   </form>
-  {% for slot in gate1slots %}
-    {% if slot.inline %}{% include 'gate_file_slot.html' %}{% endif %}
-  {% endfor %}
   {% if editable %}<button class="button" form="gate1-brief-form" name="action" value="gate1_save">Хадгалах</button>{% endif %}
-  {% include 'gate0_file_slots.html' with gate0slots=gate1slots %}
 </section>

@@ -91,6 +91,7 @@ class Gate1(GateRecord):
     consumer_liking = models.DecimalField('Таалагдсан үнэлгээ (1–9)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(1), MaxValueValidator(9)])
     consumer_would_buy_percent = models.DecimalField('Зорилтот үнээр худалдан авах хувь (%)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     typed_cogs = models.DecimalField('COGS гараар оруулах (₮, заавал биш)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
+    typed_cogs_reason = models.TextField('COGS гараар оруулах шалтгаан',null=True,blank=True)
     estimated_cogs_vs_limit = models.DecimalField('Тооцоолсон COGS (₮)', null=True, blank=True, max_digits=40, decimal_places=18)
     cogs_limit = models.DecimalField('Gate 0 COGS хязгаар (₮)', null=True, blank=True, max_digits=40, decimal_places=18)
     cogs_status = models.CharField('COGS төлөв', null=True, blank=True, max_length=200)
@@ -106,6 +107,7 @@ class Gate1(GateRecord):
     constraint_details = models.TextField('Хязгаарлалтын тайлбар', null=True, blank=True)
     fridge_check_72h = models.CharField('72 цаг · Шалгалтын үр дүн', null=True, blank=True, max_length=200)
     fridge_check_date = models.DateField('Шалгасан огноо', null=True, blank=True)
+    tested_in_actual_packaging=models.CharField('Бодит савлагаанд шалгасан эсэх',max_length=200,null=True,blank=True)
     shelf_life_test_plan = models.TextField('Лаборатори', null=True, blank=True)
     shelf_life_test_days = models.BigIntegerField('Туршилтын хугацаа (хоног)', null=True, blank=True, validators=[MinValueValidator(1)])
     shelf_life_result_due = models.DateField('Үр дүн гарах огноо', null=True, blank=True)
@@ -115,6 +117,9 @@ class Gate1(GateRecord):
     pack_size = models.TextField('Савлагааны хэмжээ', null=True, blank=True)
     pack_material = models.TextField('Савлагааны материал', null=True, blank=True)
     material_certificate = models.CharField('Материалын гэрчилгээ байгаа эсэх', null=True, blank=True, max_length=200)
+    packaging_supplier=models.TextField('Шинэ савлагааны нийлүүлэгч',null=True,blank=True)
+    packaging_moq=models.DecimalField('Шинэ савлагааны MOQ',null=True,blank=True,max_digits=14,decimal_places=3,validators=[MinValueValidator(0)])
+    packaging_lead_days=models.BigIntegerField('Шинэ савлагаа нийлүүлэх хугацаа (хоног)',null=True,blank=True,validators=[MinValueValidator(0)])
     marketing_name = models.TextField('Кампанит ажлын нэр', null=True, blank=True)
     marketing_key_message = models.TextField('Гол мессеж', null=True, blank=True)
     marketing_brief = models.TextField('Нэвтрүүлэлтийн маркетингийн санаа', null=True, blank=True)
@@ -386,7 +391,26 @@ class Gate0Cannibalisation(OrderedGateItem):
         )]
 
 
+class Gate1Trial(OrderedGateItem):
+    gate=models.ForeignKey('Gate1',on_delete=models.CASCADE,db_column='development_id',related_name='trial_log')
+    number=models.PositiveIntegerField('№',null=True,blank=True,validators=[MinValueValidator(1)])
+    date=models.DateField('Огноо',null=True,blank=True)
+    changes=models.TextField('Юу өөрчилсөн',null=True,blank=True)
+    result=models.TextField('Үр дүн',null=True,blank=True)
+    tasting_score=models.DecimalField('Амталгааны үнэлгээ (1–5)',max_digits=4,decimal_places=2,null=True,blank=True,validators=[MinValueValidator(1),MaxValueValidator(5)])
+    cogs=models.DecimalField('COGS (₮)',max_digits=14,decimal_places=2,null=True,blank=True,validators=[MinValueValidator(0)])
+    decision=models.CharField('Шийдвэр',max_length=30,null=True,blank=True,choices=[('continue','Үргэлжлүүлэх'),('approved','Батлагдсан'),('stop','Зогсоох')])
+    lessons=models.TextField('Сургамж',null=True,blank=True)
+    attachment=models.ForeignKey('Gate1File',on_delete=models.SET_NULL,null=True,blank=True,related_name='trial_rows')
+
+    class Meta:
+        db_table='development_gate1_trial'
+        ordering=['position','pk']
+        constraints=[models.UniqueConstraint(fields=['gate','position'],name='gate1_trial_position')]
+
+
 class Gate1Material(OrderedGateItem):
+    attachment=models.ForeignKey('Gate1File',on_delete=models.SET_NULL,null=True,blank=True,related_name='material_rows')
     gate = models.ForeignKey(
         'Gate1', on_delete=models.CASCADE, db_column='development_id',
         related_name='raw_material_spec_price_moq_second_source',

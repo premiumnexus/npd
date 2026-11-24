@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       row.querySelector('[data-line-cost]').textContent=cost===null?'—':cost.toFixed(0);
       if(cost===null) valid=false; else total+=cost;
     });
-    const packaging=root.querySelector('[name="packaging"]');
+    const packaging=document.querySelector('[data-packaging-unit-price]') || root.querySelector('[name="packaging"]');
     const pack=packaging?(packaging.validity.valid?Number(packaging.value):NaN):Number(root.querySelector('[data-packaging]').dataset.packaging);
     total+=pack;
     valid=valid && Number.isFinite(total);

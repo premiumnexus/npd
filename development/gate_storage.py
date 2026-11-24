@@ -18,7 +18,7 @@ SELECTIONS = {
 ROWS = {
     0: {'evidence': 'Gate0Evidence', 'competitor_benchmark': 'Gate0Competitor', 'analog_skus_sales_target': 'Gate0AnalogSKU',
         'cannibalisation': 'Gate0Cannibalisation'},
-    1: {'raw_material_spec_price_moq_second_source': 'Gate1Material'},
+    1: {'trial_log':'Gate1Trial','raw_material_spec_price_moq_second_source': 'Gate1Material'},
 }
 
 
