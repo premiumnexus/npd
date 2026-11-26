@@ -46,9 +46,15 @@ def derived_values(food,typed_cogs,launch_date,vendor_invoice_price=None):
 
 
 class Gate2Form(forms.Form):
-    def __init__(self,*args,food=None,**kwargs):
+    # Section 1 · Масс туршилт. Drafts may be partial; submission and approval require all of these.
+    mass_trial_keys=('mass_trial_result','trial_date','trial_yield_percent','trial_taste_score',
+        'quality_tolerance_baseline','quality_weight_min','quality_weight_max','unit_weight_mean',
+        'final_technology_transfer_document','technology_transfer_date')
+
+    def __init__(self,*args,food=None,submission=False,**kwargs):
         super().__init__(*args,**kwargs)
         self.food=food
+        self.submission=submission
         def add(key,label,number,field):
             field.required=False
             field.label=label
@@ -62,10 +68,17 @@ class Gate2Form(forms.Form):
         def datefield(): return forms.DateField(widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date'}))
         yesno=[('yes','Тийм'),('no','Үгүй')]
         passfail=[('pass','Тэнцсэн'),('fail','Тэнцээгүй')]
-        add('mass_trial_result','Масс туршилтын багц (кг)','2.1',number(0,None,3))
-        add('trial_yield_percent','Туршилтын гарц (%)','2.1',number(0,100))
-        add('trial_taste_score','Амтын үнэлгээ (1–5)','2.1',number(1,5))
-        add('trial_date','Туршилтын огноо','2.1',datefield())
+        # Section 1 · Масс туршилт: trial, weight and technology transfer inputs.
+        add('mass_trial_result','Масс туршилтын багц (кг)','1.1',number(0,None,3))
+        add('trial_date','Туршилтын огноо','1.2',datefield())
+        add('trial_yield_percent','Туршилтын гарц (%)','1.3',number(0,100))
+        add('trial_taste_score','Амтын үнэлгээ (1–5)','1.4',number(1,5))
+        add('quality_tolerance_baseline','Жингийн зорилт (г)','1.5',number(0,None,3))
+        add('quality_weight_min','Жингийн доод хязгаар (г)','1.6',number(0,None,3))
+        add('quality_weight_max','Жингийн дээд хязгаар (г)','1.7',number(0,None,3))
+        add('unit_weight_mean','Масс туршилтын нэгжийн дундаж жин (г)','1.8',number(0,None,3))
+        add('final_technology_transfer_document','Технологи шилжүүлэх баримтын хувилбар','1.9',text())
+        add('technology_transfer_date','Баримтын огноо','1.10',datefield())
         add('final_recipe_version','Эцсийн жорын хувилбар','2.2',forms.IntegerField(min_value=1))
         if food and food.recipe_version is not None:
             self.initial['final_recipe_version']=food.recipe_version
@@ -100,8 +113,6 @@ class Gate2Form(forms.Form):
         add('lab_results_approved_shelf_life','Микробиологийн шинжилгээ','2.3',enum(passfail))
         add('chemical_lab_result','Химийн шинжилгээ','2.3',enum(passfail))
         add('approved_shelf_life_days','Батлагдсан хадгалах хугацаа (хоног)','2.3',forms.IntegerField(min_value=1))
-        add('final_technology_transfer_document','Технологи шилжүүлэх баримтын хувилбар','2.4',text())
-        add('technology_transfer_date','Баримтын огноо','2.4',datefield())
         add('label_allergens','Орцын жагсаалтад мэдэгдсэн харшил үүсгэгчид (MNS 6648:2016)','2.5',text())
         add('label_checked','Шошгыг шалгасан эсэх','2.5',enum(yesno))
         add('barcode_system_registration','Баркод','2.6',forms.CharField())
@@ -116,11 +127,7 @@ class Gate2Form(forms.Form):
         add('marketing_promotion','Урамшуулал','2.9',text())
         add('marketing_start_date','Маркетинг эхлэх огноо','2.9',datefield())
         add('marketing_end_date','Маркетинг дуусах огноо','2.9',datefield())
-        add('unit_weight_mean','Нэгжийн дундаж жин (г)','2.10',number(0,None,3))
         add('unit_weight_variation','Нэгжийн жингийн хэлбэлзэл (± г)','2.10',number(0,None,3))
-        add('quality_tolerance_baseline','Жингийн зорилт (г)','2.10',number(0,None,3))
-        add('quality_weight_min','Жингийн доод хязгаар (г)','2.10',number(0,None,3))
-        add('quality_weight_max','Жингийн дээд хязгаар (г)','2.10',number(0,None,3))
         day45_choices=[('same','Gate 0-ийн зорилт хэвээр'),('changed','Өөрчилсөн')]
         add('day45_target_confirmed','Gate 0-ийн зорилт хэвээр / Өөрчилсөн','2.11',forms.ChoiceField(choices=day45_choices))
         add('day45_units_store_day','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','2.11',number())
@@ -140,6 +147,9 @@ class Gate2Form(forms.Form):
         # These two modes control copying/editing and do not accept custom options.
         self.fields['day45_target_confirmed'].widget=forms.Select()
         self.fields['day45_target_confirmed'].choices=day45_choices
+        for key in self.mass_trial_keys:
+            self.fields[key].gate_required=True
+            self.fields[key].required=submission
         self.legacy_values=[]
         if not self.is_bound:
             for key,field in self.fields.items():

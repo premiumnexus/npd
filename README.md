@@ -135,7 +135,7 @@ Both Gate 1 and Gate 2 show COGS status against the Gate 0 limit:
 
 Gate 1's `amber_band` and `send_to_director` fields remain stored and calculated, but are hidden in the frontend.
 
-Gate 2 section 2.10 groups weight measurements and the quality-standard upload. Section 2.11 defaults to the Gate 0 section 0.21 targets and allows a changed target; its reason box appears for the changed option and remains optional. Section 2.12 copies the planned date from Gate 0 section 0.22 and calculates actual launch date minus planned date: positive means delayed, negative means earlier. ISF Manual is available only for ISF developments. Invoice-based margins are calculated from the available pricing inputs.
+Gate 2 opens with the Масс туршилт section: mass trial batch (1.1), trial date (1.2), trial yield (1.3), taste score (1.4), weight target (1.5), lower and upper weight limits (1.6–1.7), mass trial mean unit weight (1.8), technology transfer document version (1.9) and document date (1.10). All ten are required, marked with a red asterisk: drafts may be saved partially, but submission and final approval require every value. The weight target must lie within the limits. Section 2.10 keeps unit weight variation and the quality-standard upload. Section 2.11 defaults to the Gate 0 section 0.21 targets and allows a changed target; its reason box appears for the changed option and remains optional. Section 2.12 copies the planned date from Gate 0 section 0.22 and calculates actual launch date minus planned date: positive means delayed, negative means earlier. ISF Manual is available only for ISF developments. Invoice-based margins are calculated from the available pricing inputs.
 
 ## Launch GO and Gate 3
 

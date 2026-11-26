@@ -7,6 +7,11 @@ from django.test import TestCase
 from django.contrib.auth.models import User,Group
 from .models import Food,Supplier,Ingredient,RecipeLine
 
+def valid_gate2():
+    """Gate 2 section 1 (Масс туршилт) values required before submission or approval."""
+    from .test_gate2_mass_trial import COMPLETE
+    return dict(COMPLETE)
+
 def valid_gate0():
     from .models import Gate0Option
     Gate0Option.objects.get_or_create(kind='subcategory',code='test-subtype',category='FF',defaults={'label':'Test subtype'})
@@ -1317,6 +1322,8 @@ class DevelopmentTests(TestCase):
                 self.assertEqual(len(costing['files']),2)
                 self.assertContains(response,'final.xlsx')
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G1-F1'}).status_code,403)
+                from .gate2 import save_brief as save_gate2
+                save_gate2(self.food,valid_gate2())
                 self.client.post(url,{'action':'submit'})
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G2-F1'}).status_code,403)
                 self.user.groups.clear()
@@ -1414,7 +1421,7 @@ class DevelopmentTests(TestCase):
         from .gate2 import initial_brief
         self.food.stage='gate2'; self.food.save()
         url='/food/%s/' % self.food.pk
-        payload={'action':'gate2_save','mass_trial_result':'10.5','typed_cogs':'1200','launch_date':'2027-05-15','lab_results_approved_shelf_life':'pass'}
+        payload={**valid_gate2(),'action':'gate2_save','mass_trial_result':'10.5','typed_cogs':'1200','launch_date':'2027-05-15','lab_results_approved_shelf_life':'pass'}
         self.assertEqual(self.client.post(url,payload).status_code,403)
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         response=self.client.get(url)
@@ -1588,6 +1595,8 @@ class DevelopmentTests(TestCase):
 
     def test_gate2_approval_order_and_launch_gate3_completion(self):
         self.food.stage='gate2'; self.food.save()
+        from .gate2 import save_brief as save_gate2
+        save_gate2(self.food,valid_gate2())
         self.act_as('NPD / Product Developer','submit')
         self.assertEqual(self.food.review_status,'qa')
         self.act_as('Merchandising Director','approve')

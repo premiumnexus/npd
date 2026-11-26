@@ -3,16 +3,16 @@ from django import forms
 from django.db import transaction
 
 FIELDS = [
-    ('2.1','mass_trial_result','Масс туршилтын үр дүн'),
+    ('1.1','mass_trial_result','Масс туршилтын багц (кг)'),
     ('2.2','final_cogs_invoice_price','Эцсийн COGS ба нэхэмжлэхийн үнэ'),
     ('2.3','lab_results_approved_shelf_life','Лабын үр дүн'),
-    ('2.4','final_technology_transfer_document','Технологи шилжүүлэх баримт (эцсийн)'),
+    ('1.9','final_technology_transfer_document','Технологи шилжүүлэх баримтын хувилбар'),
     ('2.5','label_checked','Шошгоны шалгалт'),
     ('2.6','barcode_system_registration','Баркод, системийн бүртгэл'),
     ('2.7','allocation','Хуваарилалт'),
     ('2.8','supply_readiness','Нийлүүлэлтийн бэлэн байдал'),
     ('2.9','marketing_plan','Маркетингийн төлөвлөгөө'),
-    ('2.10','quality_tolerance_baseline','Чанарын зөвшөөрөх хүрээ'),
+    ('1.5','quality_tolerance_baseline','Жингийн зорилт (г)'),
     ('2.11','day45_target_confirmed','45 хоногийн зорилт баталгаажуулах'),
     ('2.12','launch_date','Нэвтрүүлэх огноо'),
 ]
