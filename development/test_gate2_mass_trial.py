@@ -1,4 +1,6 @@
+import tempfile
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from .gate2_typed import Gate2Form
@@ -21,6 +23,9 @@ MASS_TRIAL = [
 
 class Gate2MassTrialSectionTests(TestCase):
     def setUp(self):
+        self.media=tempfile.TemporaryDirectory();self.addCleanup(self.media.cleanup)
+        override=self.settings(MEDIA_ROOT=self.media.name)
+        override.enable();self.addCleanup(override.disable)
         self.user = User.objects.create_superuser('gate2-mass-trial', password='x')
         self.food = Food.objects.create(name='Mass trial', stage='gate2', category='FF', owner=self.user)
         self.client.force_login(self.user)
@@ -33,12 +38,12 @@ class Gate2MassTrialSectionTests(TestCase):
             self.assertEqual(form.fields[name].gate_number, number)
             self.assertEqual(form.fields[name].label, label)
             self.assertTrue(form.fields[name].help_text.startswith(number + ' · '))
-        self.assertEqual(form.fields['unit_weight_variation'].gate_number, '2.10')
+        self.assertNotIn('unit_weight_variation',form.fields)
 
     def test_detail_renders_section_with_note_before_other_fields(self):
         html = self.client.get('/food/%s/' % self.food.pk).content.decode()
-        section = html.index('<legend>Масс туршилт</legend>')
-        self.assertIn('Үйлдвэрт тогтвортой хийж чадах уу?', html)
+        section = html.index('<legend>Үйлдвэрлэл</legend>')
+        self.assertIn('Үйлдвэрт бүрэн хэмжээгээр ижил гарч байна уу?', html)
         positions = [html.index('name="%s"' % name) for name, _, _ in MASS_TRIAL]
         self.assertTrue(section < positions[0])
         self.assertEqual(positions, sorted(positions))
@@ -65,6 +70,11 @@ class Gate2MassTrialSectionTests(TestCase):
         self.food.refresh_from_db()
         self.assertEqual(self.food.review_status, 'draft')
         save_brief(self.food, COMPLETE)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .gate2 import save_slot_file
+        save_slot_file(self.food,self.user,'G2-F2',SimpleUploadedFile('quote.pdf',b'quote'))
+        save_slot_file(self.food,self.user,'G2-F5',SimpleUploadedFile('signed.pdf',b'signed transfer'))
+        for slot in ('G2-F3','G2-F6','G2-F7','G2-F8'): save_slot_file(self.food,self.user,slot,SimpleUploadedFile(slot+'.pdf',b'lab and safety'))
         self.client.post(url, {'action': 'submit'})
         self.food.refresh_from_db()
         self.assertEqual(self.food.review_status, 'qa')
@@ -78,8 +88,47 @@ class Gate2MassTrialSectionTests(TestCase):
         self.food.refresh_from_db()
         self.assertEqual((self.food.stage, self.food.review_status), ('gate2', 'manager'))
 
+    def test_production_file_slots_are_numbered_once_and_not_at_the_bottom(self):
+        html=self.client.get('/food/%s/'%self.food.pk).content.decode()
+        group=html.split('<fieldset class="gate0-identity gate2-mass-trial"',1)[1].split('</fieldset>',1)[0]
+        bottom=html.split('<section class="gate0-file-slots"',1)[1]
+        positions=[]
+        for key,number in [('G2-F5','1.11'),('G2-F1','1.12'),('G2-F13','1.13')]:
+            positions.append(group.index('class="field-number">%s</span>'%number))
+            self.assertEqual(html.count('id="file-%s"'%key),1)
+            self.assertIn('id="file-%s"'%key,group)
+            self.assertNotIn('id="file-%s"'%key,bottom)
+        self.assertEqual(positions,sorted(positions))
+        self.assertEqual(group.count('class="required-star"'),11)
+        self.assertNotIn('name="unit_weight_variation"',html)
+
+    def test_signed_transfer_file_required_before_submission_and_approval(self):
+        from .gate2 import save_brief,save_slot_file
+        url='/food/%s/'%self.food.pk
+        save_brief(self.food,COMPLETE)
+        save_slot_file(self.food,self.user,'G2-F2',SimpleUploadedFile('quote.pdf',b'quote'))
+        for slot in ('G2-F3','G2-F6','G2-F7','G2-F8'): save_slot_file(self.food,self.user,slot,SimpleUploadedFile(slot+'.pdf',b'lab and safety'))
+        form=Gate2Form(COMPLETE,food=self.food,submission=True)
+        self.assertFalse(form.is_valid());self.assertIn('1.11',str(form.non_field_errors()))
+        self.client.post(url,{'action':'submit'})
+        self.food.refresh_from_db();self.assertEqual(self.food.review_status,'draft')
+        self.food.review_status='manager';self.food.save()
+        self.client.post(url,{'action':'approve'})
+        self.food.refresh_from_db();self.assertEqual((self.food.stage,self.food.review_status),('gate2','manager'))
+        self.food.review_status='draft';self.food.save()
+        upload=self.client.post(url,{'action':'slot_upload','slot':'G2-F5','slot_file':SimpleUploadedFile('signed.pdf',b'signed transfer')})
+        self.assertEqual(upload.status_code,302)
+        form=Gate2Form(COMPLETE,food=self.food,submission=True)
+        self.assertTrue(form.is_valid(),form.errors)
+        self.client.post(url,{'action':'submit'})
+        self.food.refresh_from_db();self.assertEqual(self.food.review_status,'qa')
+
 
 COMPLETE = {
+    'label_allergens':'Milk','label_checked':'yes',
+    'nutrition_info':[{'energy_kcal':'200','protein_g':'5','fat_g':'10','carbohydrates_g':'20','salt_g':'0.5'}],
+    'lab_results_approved_shelf_life':'pass','approved_shelf_life_hours':'48',
+    'vendor_invoice_price':'1000',
     'mass_trial_result': '25', 'trial_date': '2027-03-01', 'trial_yield_percent': '95',
     'trial_taste_score': '4', 'quality_tolerance_baseline': '150', 'quality_weight_min': '145',
     'quality_weight_max': '155', 'unit_weight_mean': '150.5',

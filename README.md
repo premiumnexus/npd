@@ -115,7 +115,15 @@ Gate 1's Хүнсний аюулгүй байдал ба хадгалалт sect
 
 Gate 1's Нэвтрүүлэлтийн маркетинг section contains campaign name (7.1), key message (7.2), launch marketing idea (7.3) and its file history (7.4). Product photos also live in marketing, while COGS Excel uploads live in the recipe-cost section. All Gate 1 fields and uploads are shown in their sections once; no standalone bottom field or upload area is rendered. Empty field subsets remain empty rather than falling back to the whole form.
 
-The shared recipe editor is in Gate 1 section 1.4 and Gate 2 section 2.2. It stores ingredient quantities per finished product, ingredient yield, captured price per kg and per-product packaging cost:
+Gate 2's first section is Үйлдвэрлэл, with the subtitle Үйлдвэрт бүрэн хэмжээгээр ижил гарч байна уу? Its existing production fields retain 1.1–1.10; the signed technology-transfer file is required as 1.11, mass-trial file history is 1.12, and quality-standard file history is 1.13. These uploads appear only in this section. The separate unit-weight variation input is removed. Both submission and approval require the signed transfer document.
+
+Gate 2's Эцсийн өртөг ба ашиг section groups the recipe editor (2.1), optional change reason (2.2), packaging cost (2.3), final COGS (2.4), target limit (2.5), COGS gap/status (2.6), required VAT-exclusive invoice price (2.7), actual CU margin (2.8), CU margin shortfall (2.9), actual supplier margin (2.10), invoice-price status (2.11), overall cost status (2.12) and required supplier quote history (2.13). Invoice status compares 2.7 against Gate 0 3.8 with the same configured Amber percentage as COGS. Overall status takes the worse result; missing inputs stay pending unless a known result is already Red. Red decisions follow the existing FFM → Merchandising Director approval route. The duplicate final recipe-version control and G2-F11 Excel upload are removed; historical files remain downloadable and internal recipe version tracking remains automatic.
+
+Gate 2's Хүнсний аюулгүй байдал ба хадгалах хугацаа section contains required microbiological result (3.1), optional chemical result (3.2), required approved shelf life in hours (3.3), required laboratory report (3.4), optional shelf-life report (3.5) and required HACCP/CCP plan (3.6). File histories appear only in this section. Both submission and approval check the required fields and uploaded documents; partial drafts remain allowed. Historical approved shelf-life values in days are converted to hours without overwriting explicit hour values.
+
+Gate 2's Шошго ба савлагаа section contains required declared allergens (4.1), repeatable nutrition rows per 100 g (4.2: kcal, protein, fat, carbohydrate and salt), label check (4.3), final label design file (4.4) and final packaging specification file (4.5). At least one complete nutrition row and both uploads are required before submission or approval. Partial drafts are allowed; file histories appear only in this section.
+
+The shared recipe editor is in Gate 1 section 1.4 and Gate 2 section 2.1. It stores ingredient quantities per finished product, ingredient yield, captured price per kg and per-product packaging cost:
 
 ```text
 Ingredient cost = net grams / 1000 / ingredient yield * price per kg

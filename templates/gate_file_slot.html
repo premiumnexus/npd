@@ -1,5 +1,5 @@
 <div class="gate0-file-slot">
-  <label for="file-{{ slot.key }}"><span class="field-number">{{ slot.number|default:slot.key }}</span> {{ slot.label }}</label>
+  <label for="file-{{ slot.key }}"><span class="field-number">{{ slot.number|default:slot.key }}</span> {{ slot.label }}{% if slot.required %} <span class="required-star" title="Заавал бөглөх" aria-label="Заавал бөглөх">*</span>{% endif %}</label>
   {% for item in slot.files %}
     <a class="attachment-link" href="{% if item.download_url %}{{ item.download_url }}{% else %}{% url 'download_attachment' item.pk %}{% endif %}">{{ item.attachment_name }}</a>
     <small>{{ item.actor }} · {{ item.created|date:'Y-m-d H:i' }}</small>

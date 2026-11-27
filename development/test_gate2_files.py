@@ -17,7 +17,7 @@ from .models import Activity, Food, Gate2File
 
 
 class Gate2FileStorageTests(TestCase):
-    supporting_slots = ['G2-F%s' % number for number in range(1, 12)]
+    supporting_slots = ['G2-F%s' % number for number in range(1, 11)]
 
     def setUp(self):
         self.media = tempfile.TemporaryDirectory()
@@ -72,7 +72,7 @@ class Gate2FileStorageTests(TestCase):
             with record.file.open('rb') as uploaded:
                 self.assertEqual(uploaded.read(), body)
         self.assertEqual(Gate2File._meta.db_table, 'development_gate2_files')
-        self.assertEqual(self.development.gate2_files.count(), 11)
+        self.assertEqual(self.development.gate2_files.count(), len(self.supporting_slots))
         self.assertFalse(self.development.activities.exclude(attachment='').exists())
         with connection.cursor() as cursor:
             cursor.execute('SELECT development_id, slot_code FROM development_gate2_files')
@@ -86,12 +86,12 @@ class Gate2FileStorageTests(TestCase):
                 self.assertEqual(self.upload(slot=slot, name='same-name.pdf', body=body).status_code, 302)
                 record = Gate2File.objects.get(slot_code=slot, activity=self.development.activities.latest('pk'))
                 expected[record.pk] = body
-        self.assertEqual(self.development.gate2_files.count(), 22)
-        self.assertEqual(len(set(self.development.gate2_files.values_list('file', flat=True))), 22)
+        self.assertEqual(self.development.gate2_files.count(), 2*len(self.supporting_slots))
+        self.assertEqual(len(set(self.development.gate2_files.values_list('file', flat=True))), 2*len(self.supporting_slots))
         self.user.groups.clear()
         page = self.client.get(self.url)
         self.assertNotContains(page, 'name="slot_file"')
-        self.assertEqual(len(page.context['gate2slots']), 12)
+        self.assertEqual(len(page.context['gate2slots']), len(self.supporting_slots)+1)
         for slot in page.context['gate2slots']:
             if slot['key'] == 'G2-F13':
                 self.assertFalse(slot['files'])
@@ -127,7 +127,7 @@ class Gate2FileStorageTests(TestCase):
         self.assertEqual(self.development.gate2_files.count(), 1)
         page = self.client.get(self.url)
         slots = {slot['key']: slot for slot in page.context['gate2slots']}
-        self.assertEqual(len(slots), 13)
+        self.assertEqual(len(slots), len(self.supporting_slots)+2)
         self.assertContains(page, 'id="file-G2-F12"', count=1)
         self.assertContains(page, 'id="file-G2-F13"', count=1)
         for key in ('G2-F12', 'G2-F13'):
@@ -197,21 +197,27 @@ class Gate2FileStorageTests(TestCase):
         ensure_gate_rows(other)
         other_url = reverse('detail', args=[other.pk])
         for slot, _ in required:
-            self.assertEqual(self.upload(slot=slot, name=slot + '.pdf', url=other_url).status_code, 302)
+            if slot=='G2-F11':
+                Gate2File.objects.create(development=other,slot_code=slot,file=SimpleUploadedFile('legacy.xlsx',b'legacy costing'),original_filename='legacy.xlsx',uploader=self.user)
+            else:
+                self.assertEqual(self.upload(slot=slot, name=slot + '.pdf', url=other_url).status_code, 302)
         assert_handover(other, {slot for slot, _ in required})
         assert_handover(self.development, set())
         self.assertEqual(self.upload(slot='G2-F1').status_code, 302)
         assert_handover(self.development, set())
         completed = set()
         for slot, _ in required:
-            self.assertEqual(self.upload(slot=slot, name=slot + '.pdf').status_code, 302)
+            if slot=='G2-F11':
+                Gate2File.objects.create(development=self.development,slot_code=slot,file=SimpleUploadedFile('legacy.xlsx',b'legacy costing'),original_filename='legacy.xlsx',uploader=self.user)
+            else:
+                self.assertEqual(self.upload(slot=slot, name=slot + '.pdf').status_code, 302)
             completed.add(slot)
             assert_handover(self.development, completed)
         self.assertFalse(self.development.activities.exclude(attachment='').exists())
         self.assertFalse(other.activities.exclude(attachment='').exists())
 
     def test_invalid_slots_and_empty_files_do_not_create_records(self):
-        for slot in ('', 'unknown', 'G0-F1', 'G1-F1', 'G2-F12', 'G2-F14'):
+        for slot in ('', 'unknown', 'G0-F1', 'G1-F1', 'G2-F11', 'G2-F12', 'G2-F14'):
             self.assertEqual(self.upload(slot=slot).status_code, 403)
         self.assertEqual(self.upload(body=b'').status_code, 302)
         self.assertEqual(self.client.post(self.url, {'action': 'slot_upload', 'slot': 'G2-F1'}).status_code, 302)

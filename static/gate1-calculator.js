@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const label={Green:'Ногоон',Amber:'Шар',Red:'Улаан',Pending:'Хүлээгдэж байна'}[status];
     root.querySelector('[data-recipe-gap]').textContent=gap===null?'—':gap.toFixed(1)+'%';
     root.querySelectorAll('[data-recipe-status], [data-cogs-status-field]').forEach(element=>{
+      if(['invoice_price_status','overall_cost_status'].includes(element.name)) return;
       if(element.tagName==='INPUT') element.value=label;
       else element.textContent=label;
       element.dataset.cogsStatus=status;
@@ -62,6 +63,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const gapField=root.querySelector('[name="cogs_gap_percent"]');
     if(gapField) gapField.value=gap===null?'':gap.toFixed(1);
     root.querySelector('[data-recipe-director]').textContent=gap===null?'—':status==='Red'?'Тийм':'Үгүй';
+    root.dispatchEvent(new CustomEvent('recipe-cost-change',{detail:{total:valid?total:null,status}}));
   };
   root.addEventListener('input',update);
   update();

@@ -673,7 +673,7 @@ class DevelopmentTests(TestCase):
         save_gate1(self.food,{'typed_cogs':'1500'})
         form=Gate2Form({'launch_date':'2027-04-11','original_launch_date':'2099-01-01','final_recipe_version':'999','launch_delay_days':'999'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
-        self.assertEqual(form.cleaned_data['final_recipe_version'],4)
+        self.assertNotIn('final_recipe_version',form.fields)
         self.assertEqual(form.cleaned_data['launch_delay_days'],10)
         self.assertEqual(form.cleaned_data['original_launch_date'],'2027-04-01')
         self.assertEqual(form.cleaned_data['final_cogs_invoice_price'],20100)
@@ -1124,7 +1124,7 @@ class DevelopmentTests(TestCase):
                 self.assertEqual(page.context['gate2form'].initial['cogs_limit'],Decimal('1000'))
                 self.assertContains(page,'data-cogs-status="%s"' % status)
                 self.assertContains(page,'value="%s"' % label)
-                self.assertContains(page,'COGS төлөв:')
+                self.assertContains(page,'2.6 COGS:')
         COGSComparisonPolicy.objects.create(amber_band_percent=10)
         line.unit_price=Decimal('11000'); line.save()
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
@@ -1145,7 +1145,7 @@ class DevelopmentTests(TestCase):
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         url='/food/%s/' % self.food.pk
         page=self.client.get(url)
-        self.assertContains(page,'2.2 · Жорын COGS')
+        self.assertContains(page,'2.1 · Жорын COGS')
         self.assertContains(page,'value="gate2_line_add"')
         self.assertContains(page,'data-option-stage="gate2"')
         self.assertNotContains(page,'value="gate1_line_add"')
@@ -1171,12 +1171,13 @@ class DevelopmentTests(TestCase):
         self.assertEqual(self.food.recipe_version,7)
         page=self.client.get(url)
         self.assertEqual(page.context['gate2form'].initial['final_cogs_invoice_price'],'730')
-        self.assertEqual(page.context['gate2form'].initial['final_recipe_version'],7)
+        self.assertNotIn('final_recipe_version',page.context['gate2form'].fields)
         self.assertEqual(self.food.activities.filter(text__startswith='Gate 2').count(),4)
         self.assertEqual(self.client.post(url,{'action':'gate2_save','final_cogs_invoice_price':'1','final_recipe_version':'999'}).status_code,302)
         saved=initial_brief(self.food)
         self.assertEqual(Decimal(saved['final_cogs_invoice_price']),Decimal('730'))
-        self.assertEqual(saved['final_recipe_version'],7)
+        self.food.refresh_from_db()
+        self.assertEqual(self.food.recipe_version,7)
         self.assertEqual(self.client.get('/api/foods/%s/cost/' % self.food.pk).json()['unit_cost'],'730.00')
 
     def test_gate2_recipe_edits_respect_permissions_validation_and_record_scope(self):
@@ -1315,12 +1316,13 @@ class DevelopmentTests(TestCase):
                         self.assertEqual(self.food.activities.filter(attachment_slot=key,attachment_stage='gate2').count(),1)
                     else:
                         self.assertEqual(Gate2File.objects.filter(development=self.food,slot_code=key).count(),1)
-                self.client.post(url,{'action':'slot_upload','slot':'G2-F11','slot_file':SimpleUploadedFile('final.xlsx',b'final costing')})
+                self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G2-F11','slot_file':SimpleUploadedFile('final.xlsx',b'final costing')}).status_code,403)
+                self.client.post(url,{'action':'slot_upload','slot':'G2-F2','slot_file':SimpleUploadedFile('final-quote.pdf',b'final quote')})
                 response=self.client.get(url)
-                self.assertEqual(len(response.context['gate2slots']),12)
-                costing=next(slot for slot in response.context['gate2slots'] if slot['key']=='G2-F11')
+                self.assertEqual(len(response.context['gate2slots']),len(available_file_slots(self.food)))
+                costing=next(slot for slot in response.context['gate2slots'] if slot['key']=='G2-F2')
                 self.assertEqual(len(costing['files']),2)
-                self.assertContains(response,'final.xlsx')
+                self.assertContains(response,'final-quote.pdf')
                 self.assertEqual(self.client.post(url,{'action':'slot_upload','slot':'G1-F1'}).status_code,403)
                 from .gate2 import save_brief as save_gate2
                 save_gate2(self.food,valid_gate2())
@@ -1330,10 +1332,10 @@ class DevelopmentTests(TestCase):
                 response=self.client.get(url)
                 self.assertContains(response,'report.pdf')
                 self.assertNotContains(response,'name="slot_file"')
-                uploaded=Gate2File.objects.get(development=self.food,original_filename='final.xlsx')
+                uploaded=Gate2File.objects.get(development=self.food,original_filename='final-quote.pdf')
                 response=self.client.get(reverse('download_gate2_file',args=[uploaded.pk]))
                 self.assertEqual(response.status_code,200)
-                self.assertEqual(b''.join(response.streaming_content),b'final costing')
+                self.assertEqual(b''.join(response.streaming_content),b'final quote')
                 response.close()
 
     def test_gate2_quality_standard_replaces_text_and_is_available_in_launch(self):
@@ -1346,7 +1348,7 @@ class DevelopmentTests(TestCase):
             self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile('blocked.pdf',b'blocked')}).status_code,403)
             self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
             page=self.client.get(url)
-            self.assertContains(page,'<span class="field-number">2.10</span> Чанарын стандарт',html=True)
+            self.assertContains(page,'<span class="field-number">1.13</span> Чанарын стандарт (файл)',html=True)
             self.assertContains(page,'id="file-G2-F13"',count=1)
             for key in ['quality_texture_target','quality_texture_range','quality_taste_target','quality_taste_range']:
                 self.assertNotIn(key,page.context['gate2form'].fields)
@@ -1422,6 +1424,11 @@ class DevelopmentTests(TestCase):
         self.food.stage='gate2'; self.food.save()
         url='/food/%s/' % self.food.pk
         payload={**valid_gate2(),'action':'gate2_save','mass_trial_result':'10.5','typed_cogs':'1200','launch_date':'2027-05-15','lab_results_approved_shelf_life':'pass'}
+        rows=payload.pop('nutrition_info')
+        payload['nutrition_info-TOTAL_FORMS']=str(len(rows))
+        for index,row in enumerate(rows):
+            for key,value in row.items():
+                payload['nutrition_info-%s-%s'%(index,key)]=value
         self.assertEqual(self.client.post(url,payload).status_code,403)
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         response=self.client.get(url)
@@ -1431,6 +1438,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(initial_brief(self.food)['launch_date'],'2027-05-15')
         self.assertEqual(Decimal(initial_brief(self.food)['final_cogs_invoice_price']),Decimal('20100'))
         self.assertEqual(self.food.activities.count(),1)
+        self.add_gate2_quote()
         self.client.post(url,{'action':'submit'})
         self.assertEqual(self.client.post(url,payload).status_code,403)
         self.assertTrue(self.client.get(url).context['gate2form'].fields['lab_results_approved_shelf_life'].disabled)
@@ -1586,6 +1594,18 @@ class DevelopmentTests(TestCase):
             response=self.client.get('/food/new/')
             self.assertEqual(response.status_code,200 if party=='Category Manager (MD)' else 403)
 
+    def add_gate2_quote(self):
+        from .gate2 import save_slot_file
+        media=tempfile.TemporaryDirectory();self.addCleanup(media.cleanup)
+        override=self.settings(MEDIA_ROOT=media.name)
+        override.enable();self.addCleanup(override.disable)
+        if not self.food.gate2_files.filter(slot_code='G2-F5').exists():
+            save_slot_file(self.food,self.user,'G2-F5',SimpleUploadedFile('signed.pdf',b'signed transfer'))
+        for slot in ('G2-F3','G2-F6','G2-F7','G2-F8'):
+            if not self.food.gate2_files.filter(slot_code=slot).exists():
+                save_slot_file(self.food,self.user,slot,SimpleUploadedFile(slot+'.pdf',b'lab and safety'))
+        return save_slot_file(self.food,self.user,'G2-F2',SimpleUploadedFile('quote.pdf',b'supplier quote'))
+
     def act_as(self,role,action,note=''):
         self.user.groups.clear()
         self.user.groups.add(Group.objects.get(name=role))
@@ -1597,6 +1617,7 @@ class DevelopmentTests(TestCase):
         self.food.stage='gate2'; self.food.save()
         from .gate2 import save_brief as save_gate2
         save_gate2(self.food,valid_gate2())
+        self.add_gate2_quote()
         self.act_as('NPD / Product Developer','submit')
         self.assertEqual(self.food.review_status,'qa')
         self.act_as('Merchandising Director','approve')

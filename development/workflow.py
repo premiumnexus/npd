@@ -73,7 +73,7 @@ def transition(user,food,action,note):
             saved=initial_brief(food)
             validation=Gate2Form(saved,initial=saved,food=food,submission=True)
             if not validation.is_valid():
-                return 'Оруулсан мэдээллийн төрлийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else key,', '.join(errors)) for key,errors in validation.errors.items())
+                return 'Оруулсан мэдээллийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else 'Gate 2',', '.join(errors)) for key,errors in validation.errors.items())
         elif food.stage == 'gate3':
             from .gate3 import Gate3Form,initial_brief
             saved=initial_brief(food)
@@ -116,7 +116,7 @@ def transition(user,food,action,note):
             saved=initial_brief(food)
             validation=Gate2Form(saved,initial=saved,food=food,submission=True)
             if not validation.is_valid():
-                return 'Оруулсан мэдээллийн төрлийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else key,', '.join(errors)) for key,errors in validation.errors.items())
+                return 'Оруулсан мэдээллийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else 'Gate 2',', '.join(errors)) for key,errors in validation.errors.items())
         from .gate1_typed import cost_comparison
         from .gate1 import initial_brief as gate1_data
         red_gate1=food.stage=='gate1' and cost_comparison(food,gate1_data(food).get('typed_cogs'))['cogs_status']=='Red'

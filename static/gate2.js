@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const invoice=form.elements.namedItem('vendor_invoice_price');
     if(invoice){
       const read=value=>value===undefined || value===null || String(value).trim()===''?null:Number(value);
+      let recipeStatus=invoice.dataset.cogsStatus;
       const updateMargins=()=>{
         const price=invoice.validity.valid?read(invoice.value):null;
         const net=read(invoice.dataset.netPrice),rebate=read(invoice.dataset.rebate),target=read(invoice.dataset.targetMargin),cogs=read(invoice.dataset.finalCogs);
@@ -15,9 +16,23 @@ document.addEventListener('DOMContentLoaded',()=>{
           const input=form.elements.namedItem(name);
           input.value=value===null?'':value.toFixed(1);
         });
+        const maximum=read(invoice.dataset.maxInvoicePrice),band=read(invoice.dataset.amberBand);
+        const tolerance=Number.EPSILON*Math.max(1,Math.abs(price || 0),Math.abs(maximum || 0))*8;
+        const invoiceStatus=price===null || maximum===null || maximum<=0 || band===null?'Pending':price-maximum<=tolerance?'Green':price-maximum*(1+band/100)<=tolerance?'Amber':'Red';
+        const ranks={Green:0,Amber:1,Red:2};
+        const overall=[recipeStatus,invoiceStatus].includes('Red')?'Red':!(recipeStatus in ranks)||!(invoiceStatus in ranks)?'Pending':ranks[recipeStatus]>=ranks[invoiceStatus]?recipeStatus:invoiceStatus;
+        Object.entries({invoice_price_status:invoiceStatus,overall_cost_status:overall}).forEach(([name,status])=>{
+          const input=form.elements.namedItem(name);
+          if(input){input.value={Green:'Ногоон',Amber:'Шар',Red:'Улаан',Pending:'Хүлээгдэж байна'}[status];input.dataset.cogsStatus=status;}
+        });
       };
       invoice.addEventListener('input',updateMargins);
       updateMargins();
+      document.querySelector('#recipe-calculator')?.addEventListener('recipe-cost-change',event=>{
+        invoice.dataset.finalCogs=event.detail.total===null?'':String(event.detail.total);
+        recipeStatus=event.detail.status;
+        updateMargins();
+      });
     }
     const mode=form.elements.namedItem('day45_target_confirmed');
     if(mode){

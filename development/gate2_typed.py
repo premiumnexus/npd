@@ -2,6 +2,25 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from django import forms
 from .cogs_widgets import COGSStatusWidget
+from .gate0_rows import RowsField
+
+class NutritionRow(forms.Form):
+    energy_kcal=forms.DecimalField(label='Ккал',min_value=0,max_digits=12,decimal_places=2)
+    protein_g=forms.DecimalField(label='Уураг (г)',min_value=0,max_digits=12,decimal_places=3)
+    fat_g=forms.DecimalField(label='Өөх (г)',min_value=0,max_digits=12,decimal_places=3)
+    carbohydrates_g=forms.DecimalField(label='Нүүрс ус (г)',min_value=0,max_digits=12,decimal_places=3)
+    salt_g=forms.DecimalField(label='Давс (г)',min_value=0,max_digits=12,decimal_places=3)
+
+def cost_status(actual,limit,band):
+    if actual is None or limit is None or limit<=0: return 'Pending'
+    if actual<=limit: return 'Green'
+    return 'Amber' if (actual/limit-1)*100<=band else 'Red'
+
+def worst_cost_status(*statuses):
+    ranks={'Green':0,'Amber':1,'Red':2}
+    if 'Red' in statuses: return 'Red'
+    if any(status not in ranks for status in statuses): return 'Pending'
+    return max(statuses,key=ranks.get)
 
 def gate0_targets(food):
     from .gate0 import initial_brief
@@ -27,6 +46,8 @@ def derived_values(food,typed_cogs,launch_date,vendor_invoice_price=None):
     target_calcs=calculate(target,target.get('vat_percent'))
     net=target_calcs['price_excl_vat']
     invoice=decimal(vendor_invoice_price)
+    maximum=decimal(target_calcs['max_invoice_price'] if target_calcs['max_invoice_price'] is not None else target.get('max_invoice_price'))
+    invoice_status=cost_status(invoice,maximum,comparison['amber_band'])
     rebate=decimal(target.get('vendor_rebate'))
     margin=decimal(target.get('cu_margin'))
     front=(1-invoice/net)*100 if invoice is not None and net is not None and net>0 else None
@@ -42,10 +63,29 @@ def derived_values(food,typed_cogs,launch_date,vendor_invoice_price=None):
             'launch_delay_days':(actual-planned).days if actual and planned else '',
             'front_margin_percent':front,'margin_gap_points':gap,'implied_vendor_margin_percent':vendor,
             'cogs_limit':comparison['cogs_limit'],'cogs_status':comparison['cogs_status'],
-            'cogs_gap_percent':comparison['cogs_gap_percent']}
+            'cogs_gap_percent':comparison['cogs_gap_percent'],'invoice_price_status':invoice_status,
+            'overall_cost_status':worst_cost_status(comparison['cogs_status'],invoice_status)}
 
 
 class Gate2Form(forms.Form):
+    label_keys=('label_allergens','nutrition_info','label_checked')
+    safety_keys=('lab_results_approved_shelf_life','chemical_lab_result','approved_shelf_life_hours')
+    cost_keys=('recipe_change_reason','final_cogs_invoice_price','cogs_limit','cogs_gap_percent','cogs_status','vendor_invoice_price','front_margin_percent','margin_gap_points','implied_vendor_margin_percent','invoice_price_status','overall_cost_status')
+
+    @property
+    def cost_fields(self): return [self[key] for key in self.cost_keys]
+
+    @property
+    def invoice_fields(self): return [self[key] for key in self.cost_keys if key not in ('recipe_change_reason','final_cogs_invoice_price','cogs_limit','cogs_gap_percent','cogs_status')]
+
+    @property
+    def safety_fields(self): return [self[key] for key in self.safety_keys]
+
+    @property
+    def label_fields(self): return [self[key] for key in self.label_keys]
+
+    @property
+    def remaining_fields(self): return [field for field in self if field.name not in self.mass_trial_keys+self.cost_keys+self.safety_keys+self.label_keys]
     # Section 1 · Масс туршилт. Drafts may be partial; submission and approval require all of these.
     mass_trial_keys=('mass_trial_result','trial_date','trial_yield_percent','trial_taste_score',
         'quality_tolerance_baseline','quality_weight_min','quality_weight_max','unit_weight_mean',
@@ -79,18 +119,18 @@ class Gate2Form(forms.Form):
         add('unit_weight_mean','Масс туршилтын нэгжийн дундаж жин (г)','1.8',number(0,None,3))
         add('final_technology_transfer_document','Технологи шилжүүлэх баримтын хувилбар','1.9',text())
         add('technology_transfer_date','Баримтын огноо','1.10',datefield())
-        add('final_recipe_version','Эцсийн жорын хувилбар','2.2',forms.IntegerField(min_value=1))
-        if food and food.recipe_version is not None:
-            self.initial['final_recipe_version']=food.recipe_version
-            self.fields['final_recipe_version'].disabled=True
-        add('vendor_invoice_price','Нийлүүлэгчийн нэхэмжлэхийн үнэ (₮)','2.2',number())
-        add('final_cogs_invoice_price','Эцсийн COGS (₮, жорын тооцооноос)','2.2',forms.CharField(disabled=True))
-        add('cogs_limit','Gate 0 COGS хязгаар (₮)','2.2',forms.CharField(disabled=True))
-        add('cogs_status','COGS төлөв','2.2',forms.CharField(disabled=True,widget=COGSStatusWidget()))
-        add('cogs_gap_percent','COGS зөрүү (%)','2.2',forms.CharField(disabled=True))
-        add('front_margin_percent','Бодит үнээрх CU ашгийн хувь (%)','C13',forms.CharField(disabled=True))
-        add('margin_gap_points','CU ашгийн зорилтоос дутсан зөрүү (нэгж хувь)','C14',forms.CharField(disabled=True))
-        add('implied_vendor_margin_percent','Бодит үнээрх нийлүүлэгчийн ашгийн хувь (%)','C15',forms.CharField(disabled=True))
+        add('recipe_change_reason','Жор өөрчилсөн шалтгаан','2.2',text())
+        add('final_cogs_invoice_price','Эцсийн COGS (₮, жорын тооцооноос)','2.4',forms.CharField(disabled=True))
+        add('cogs_limit','Gate 0 COGS хязгаар (₮)','2.5',forms.CharField(disabled=True))
+        add('cogs_gap_percent','COGS зөрүү (%)','2.6',forms.CharField(disabled=True))
+        add('cogs_status','COGS төлөв','2.6',forms.CharField(disabled=True,widget=COGSStatusWidget()))
+        add('vendor_invoice_price','Нийлүүлэгчийн нэхэмжлэхийн үнэ (₮, НӨАТ-гүй)','2.7',number())
+        add('front_margin_percent','Бодит үнээрх CU ашгийн хувь (%)','2.8',forms.CharField(disabled=True))
+        add('margin_gap_points','CU ашгийн зорилтоос дутсан зөрүү (нэгж хувь)','2.9',forms.CharField(disabled=True))
+        add('implied_vendor_margin_percent','Бодит үнээрх нийлүүлэгчийн ашгийн хувь (%)','2.10',forms.CharField(disabled=True))
+        add('invoice_price_status','Нэхэмжлэхийн үнийн төлөв (Gate 0 3.8-тай харьцуулна)','2.11',forms.CharField(disabled=True,widget=COGSStatusWidget()))
+        add('overall_cost_status','Gate 2 өртгийн нийт төлөв','2.12',forms.CharField(disabled=True,widget=COGSStatusWidget()))
+        self.fields['overall_cost_status'].help_text+=' 2.6 ба 2.11-ийн аль муу нь. Улаан бол FFM → Merchandising Director шийднэ.'
         formulas={
             'final_cogs_invoice_price':'Жорын COGS = орцын өртгийн нийлбэр + нэгжийн савлагаа',
             'front_margin_percent':'(1 − Нийлүүлэгчийн нэхэмжлэхийн үнэ / НӨАТ-гүй үнэ) × 100',
@@ -102,19 +142,23 @@ class Gate2Form(forms.Form):
         from .gate0 import initial_brief as gate0_data
         from .target_costing import calculate
         target=gate0_data(food) if food else {}
+        from .gate1_typed import cost_comparison
         net=calculate(target,target.get('vat_percent'))['price_excl_vat']
         self.fields['vendor_invoice_price'].widget.attrs.update({
+            'data-max-invoice-price':str(calculate(target,target.get('vat_percent'))['max_invoice_price'] or target.get('max_invoice_price') or ''),
+            'data-amber-band':str(cost_comparison(food,None)['amber_band']),
             'data-net-price':str(net) if net is not None else '',
             'data-rebate':str(target.get('vendor_rebate')) if target.get('vendor_rebate') is not None else '',
             'data-target-margin':str(target.get('cu_margin')) if target.get('cu_margin') is not None else '',
         })
-        for key in ['final_cogs_invoice_price','front_margin_percent','margin_gap_points','implied_vendor_margin_percent','cogs_limit','cogs_status','cogs_gap_percent']:
+        for key in ['final_cogs_invoice_price','front_margin_percent','margin_gap_points','implied_vendor_margin_percent','cogs_limit','cogs_status','cogs_gap_percent','invoice_price_status','overall_cost_status']:
             self.fields[key].widget.attrs['class']='costing-result'
-        add('lab_results_approved_shelf_life','Микробиологийн шинжилгээ','2.3',enum(passfail))
-        add('chemical_lab_result','Химийн шинжилгээ','2.3',enum(passfail))
-        add('approved_shelf_life_days','Батлагдсан хадгалах хугацаа (хоног)','2.3',forms.IntegerField(min_value=1))
-        add('label_allergens','Орцын жагсаалтад мэдэгдсэн харшил үүсгэгчид (MNS 6648:2016)','2.5',text())
-        add('label_checked','Шошгыг шалгасан эсэх','2.5',enum(yesno))
+        add('lab_results_approved_shelf_life','Микробиологийн шинжилгээ (Тэнцсэн / Тэнцээгүй)','3.1',enum(passfail))
+        add('chemical_lab_result','Химийн шинжилгээ','3.2',enum(passfail))
+        add('approved_shelf_life_hours','Батлагдсан хадгалах хугацаа (цаг)','3.3',forms.IntegerField(min_value=1))
+        add('label_allergens','Орцын жагсаалтад мэдэгдсэн харшил үүсгэгчид (MNS 6648:2016)','4.1',text())
+        add('nutrition_info','Шим тэжээлийн мэдээлэл (100 г тутамд)','4.2',RowsField(NutritionRow,required=False,minimum=1 if submission else 0,complete=submission))
+        add('label_checked','Шошгыг шалгасан эсэх','4.3',enum(yesno))
         add('barcode_system_registration','Баркод','2.6',forms.CharField())
         add('sku_code_requested','SKU код хүссэн эсэх','2.6',enum(yesno))
         add('pos_name_price_checked','POS нэр, үнийг шалгасан эсэх','2.6',enum(yesno))
@@ -127,7 +171,6 @@ class Gate2Form(forms.Form):
         add('marketing_promotion','Урамшуулал','2.9',text())
         add('marketing_start_date','Маркетинг эхлэх огноо','2.9',datefield())
         add('marketing_end_date','Маркетинг дуусах огноо','2.9',datefield())
-        add('unit_weight_variation','Нэгжийн жингийн хэлбэлзэл (± г)','2.10',number(0,None,3))
         day45_choices=[('same','Gate 0-ийн зорилт хэвээр'),('changed','Өөрчилсөн')]
         add('day45_target_confirmed','Gate 0-ийн зорилт хэвээр / Өөрчилсөн','2.11',forms.ChoiceField(choices=day45_choices))
         add('day45_units_store_day','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','2.11',number())
@@ -144,10 +187,18 @@ class Gate2Form(forms.Form):
         self.fields['launch_date_change_reason'].help_text+=' Огноо зөрвөл тайлбар оруулж болно. Талбар заавал биш.'
         from .dropdown_options import apply_options
         apply_options(self, 'gate2')
+        for key in self.label_keys:
+            self.fields[key].gate_required=True
+            self.fields[key].required=submission
         # These two modes control copying/editing and do not accept custom options.
         self.fields['day45_target_confirmed'].widget=forms.Select()
         self.fields['day45_target_confirmed'].choices=day45_choices
         for key in self.mass_trial_keys:
+            self.fields[key].gate_required=True
+            self.fields[key].required=submission
+        self.fields['vendor_invoice_price'].gate_required=True
+        self.fields['vendor_invoice_price'].required=submission
+        for key in ('lab_results_approved_shelf_life','approved_shelf_life_hours'):
             self.fields[key].gate_required=True
             self.fields[key].required=submission
         self.legacy_values=[]
@@ -186,6 +237,7 @@ class Gate2Form(forms.Form):
         self.initial.update(derived_values(food,None,raw.get('launch_date'),raw.get('vendor_invoice_price')))
         cogs=self.initial['final_cogs_invoice_price']
         self.fields['vendor_invoice_price'].widget.attrs['data-final-cogs']=str(cogs) if cogs is not None else ''
+        self.fields['vendor_invoice_price'].widget.attrs['data-cogs-status']=self.initial['cogs_status']
         from decimal import ROUND_HALF_UP
         for key in ['final_cogs_invoice_price','front_margin_percent','margin_gap_points','implied_vendor_margin_percent']:
             value=self.initial[key]
@@ -194,6 +246,10 @@ class Gate2Form(forms.Form):
 
     def clean(self):
         data=super().clean()
+        if self.submission:
+            for slot,message in [('G2-F5','1.11 Технологи шилжүүлэх баримт, гарын үсэгтэй файл заавал хавсаргана уу.'),('G2-F2','2.13 Нийлүүлэгчийн эцсийн үнийн саналын файл заавал хавсаргана уу.'),('G2-F3','3.4 Лабораторийн тайлангийн файл заавал хавсаргана уу.'),('G2-F6','3.6 HACCP / CCP төлөвлөгөөний файл заавал хавсаргана уу.'),('G2-F7','4.4 Шошгоны эцсийн загварын файл заавал хавсаргана уу.'),('G2-F8','4.5 Савлагааны эцсийн техникийн тодорхойлолтын файл заавал хавсаргана уу.')]:
+                if not self.food or not self.food.gate2_files.filter(slot_code=slot).exclude(file='').exists():
+                    self.add_error(None,message)
         if 'day45_target_confirmed' not in self.errors:
             data['day45_target_confirmed']=self.day45_mode
             if self.day45_mode!='changed': data['day45_change_reason']=''

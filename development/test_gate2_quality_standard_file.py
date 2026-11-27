@@ -140,7 +140,7 @@ class Gate2QualityStandardFileTests(TestCase):
         self.assertEqual(self.upload().status_code, 302)
         expected = self.pointer()
         save_gate0(self.development, {'category': 'ISF'})
-        for slot in ('G2-F1', 'G2-F11', 'G2-F12'):
+        for slot in ('G2-F1', 'G2-F2', 'G2-F12'):
             self.assertEqual(self.upload(name=slot + '.pdf', body=slot.encode('ascii'), slot=slot).status_code, 302)
             self.assertEqual(self.pointer(), expected)
         self.assertEqual(self.development.gate2_files.count(), 2)

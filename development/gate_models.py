@@ -141,6 +141,9 @@ class Gate1(GateRecord):
 
 
 class Gate2(GateRecord):
+    recipe_change_reason=models.TextField('Жор өөрчилсөн шалтгаан',null=True,blank=True)
+    invoice_price_status=models.CharField('Нэхэмжлэхийн үнийн төлөв',max_length=200,null=True,blank=True)
+    overall_cost_status=models.CharField('Gate 2 өртгийн нийт төлөв',max_length=200,null=True,blank=True)
     mass_trial_result = models.DecimalField('Масс туршилтын багц (кг)', null=True, blank=True, max_digits=14, decimal_places=3, validators=[MinValueValidator(0)])
     trial_yield_percent = models.DecimalField('Туршилтын гарц (%)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     trial_taste_score = models.DecimalField('Амтын үнэлгээ (1–5)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(1), MaxValueValidator(5)])
@@ -157,6 +160,7 @@ class Gate2(GateRecord):
     lab_results_approved_shelf_life = models.CharField('Микробиологийн шинжилгээ', null=True, blank=True, max_length=200)
     chemical_lab_result = models.CharField('Химийн шинжилгээ', null=True, blank=True, max_length=200)
     approved_shelf_life_days = models.BigIntegerField('Батлагдсан хадгалах хугацаа (хоног)', null=True, blank=True, validators=[MinValueValidator(1)])
+    approved_shelf_life_hours=models.BigIntegerField('Батлагдсан хадгалах хугацаа (цаг)',null=True,blank=True,validators=[MinValueValidator(1)])
     final_technology_transfer_document = models.TextField('Технологи шилжүүлэх баримтын хувилбар', null=True, blank=True)
     technology_transfer_date = models.DateField('Баримтын огноо', null=True, blank=True)
     label_allergens = models.TextField('Орцын жагсаалтад мэдэгдсэн харшил үүсгэгчид (MNS 6648:2016)', null=True, blank=True)
@@ -427,6 +431,20 @@ class Gate1Material(OrderedGateItem):
         constraints = [models.UniqueConstraint(
             fields=['gate', 'position'], name='gate1_material_position',
         )]
+
+
+class Gate2Nutrition(OrderedGateItem):
+    gate=models.ForeignKey('Gate2',on_delete=models.CASCADE,db_column='development_id',related_name='nutrition_info')
+    energy_kcal=models.DecimalField('Ккал',max_digits=12,decimal_places=2,null=True,blank=True,validators=[MinValueValidator(0)])
+    protein_g=models.DecimalField('Уураг (г)',max_digits=12,decimal_places=3,null=True,blank=True,validators=[MinValueValidator(0)])
+    fat_g=models.DecimalField('Өөх (г)',max_digits=12,decimal_places=3,null=True,blank=True,validators=[MinValueValidator(0)])
+    carbohydrates_g=models.DecimalField('Нүүрс ус (г)',max_digits=12,decimal_places=3,null=True,blank=True,validators=[MinValueValidator(0)])
+    salt_g=models.DecimalField('Давс (г)',max_digits=12,decimal_places=3,null=True,blank=True,validators=[MinValueValidator(0)])
+
+    class Meta:
+        db_table='development_gate2_nutrition'
+        ordering=['position','pk']
+        constraints=[models.UniqueConstraint(fields=['gate','position'],name='gate2_nutrition_position')]
 
 
 class GateDataArchive(models.Model):
