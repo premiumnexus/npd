@@ -76,6 +76,16 @@ def transition(user,food,action,note):
             validation=Gate3Form(saved,initial=saved,food=food)
             if not validation.is_valid():
                 return 'Оруулсан мэдээллийн төрлийг шалгана уу: '+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else key,', '.join(errors)) for key,errors in validation.errors.items())
+        elif food.stage == 'launch':
+            from .launch import CheckpointForm
+            for day in (7,14):
+                validation=CheckpointForm({},day=day,food=food,user=user,submission=True)
+                if not validation.is_valid():
+                    return 'Day %s: '%day+ '; '.join('%s: %s' % (validation.fields[key].label if key in validation.fields else key,', '.join(errors)) for key,errors in validation.errors.items())
+            from .launch import validate_launch_decision
+            validation=validate_launch_decision(food)
+            if not validation.is_valid():
+                return 'Шийдвэр: '+ '; '.join(str(error) for errors in validation.errors.values() for error in errors)
         if food.stage == 'launch':
             food.stage = 'gate3'
         elif food.stage == 'gate2':

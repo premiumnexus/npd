@@ -1,5 +1,5 @@
-{% load static %}
-<script src="{% static 'launch-checkpoints.js' %}?v=day14-check-2" defer></script>
+{% load static l10n %}
+<script src="{% static 'launch-checkpoints.js' %}?v=day14-fields-4" defer></script>
 <section class="panel padded">
   <h2>Launch GO · Нэвтрүүлэлтийн хяналт</h2>
   {% if food.launched_at %}<p>Нэвтрүүлсэн: {{ food.launched_at|date:'Y-m-d H:i' }}</p>{% endif %}
@@ -7,21 +7,25 @@
 {% for checkpoint in checkpoint_cards %}
 <section class="panel padded">
   <h2>Day {{ checkpoint.day }} – {{ checkpoint.day }} {% if checkpoint.day == 7 %}дахь{% else %}дэх{% endif %} өдрийн шалгалт</h2>
-  <p>Хариуцах баг: Хүнсний технологич, FF төлөвлөлт{% if checkpoint.day == 14 %}, QA{% endif %}.</p>
+  {% if checkpoint.day == 7 %}<small><em>Төлөвлөгөөний дагуу эхэлж байна уу?</em></small>{% else %}<p>Хариуцах баг: Хүнсний технологич, FF төлөвлөлт, QA.</p>{% endif %}
   {% if not checkpoint.editable %}<p>Зөвхөн харах боломжтой.</p>{% endif %}
   <details class="checkpoint-baseline"><summary>Gate 2 (2.10) · Харьцуулах чанарын шалгуур</summary>
     <dl><dt>Зорилтот жин</dt><dd>{{ checkpoint.baseline.quality_tolerance_baseline|default:'—' }} г</dd><dt>Жингийн зөвшөөрөх хүрээ</dt><dd>{{ checkpoint.baseline.quality_weight_min|default:'—' }} – {{ checkpoint.baseline.quality_weight_max|default:'—' }} г</dd><dt>Чанарын стандарт</dt><dd>{% for item in checkpoint.quality_standards %}<a class="attachment-link" href="{% url 'download_attachment' item.pk %}">{{ item.attachment_name }}</a>{% empty %}—{% endfor %}</dd></dl>
   </details>
-  <form method="post" enctype="multipart/form-data" class="gate0-fields" data-launch-checkpoint data-editable="{{ checkpoint.editable|yesno:'true,false' }}">
+  <form method="post" enctype="multipart/form-data" class="gate0-fields" data-launch-checkpoint data-checkpoint-day="{{ checkpoint.day }}" data-editable="{{ checkpoint.editable|yesno:'true,false' }}">
     {% csrf_token %}<input type="hidden" name="day" value="{{ checkpoint.day }}">
     {{ checkpoint.form.non_field_errors }}
     {% for field in checkpoint.form %}
       {% if field.name != 'report' %}
-      <div class="gate0-field"{% if field.name == 'action_plan' %} data-checkpoint-actions{% if not checkpoint.form.action_required %} hidden{% endif %}{% endif %}>
-        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      <div class="gate0-field"{% if field.name == 'action_plan' %} data-checkpoint-actions{% if not checkpoint.form.action_visible %} hidden{% endif %}{% endif %}>
+        <label for="{{ field.id_for_label }}">{% if field.field.gate_number %}<span class="field-number">{{ field.field.gate_number }}</span> {% endif %}{{ field.label }}{% if field.name == 'action_plan' %} <span class="required-star" data-checkpoint-action-star title="Заавал бөглөх"{% if not checkpoint.form.action_required %} hidden{% endif %}>*</span>{% elif field.field.gate_required %} <span class="required-star" title="Заавал бөглөх">*</span>{% endif %}</label>
         {% if field.name == 'achievement_percent' %}
           <output id="{{ field.id_for_label }}" class="apsd-achievement" data-apsd-achievement data-status="{{ checkpoint.form.achievement.status }}" aria-live="polite">{% if checkpoint.form.achievement.percent is not None %}{{ checkpoint.form.achievement.percent|floatformat:2 }}%{% else %}—{% endif %}</output>
           <small>Бодит APSD / Зорилтот APSD × 100 · Ногоон ≥ 100%, Шар ≥ 80%, Улаан &lt; 80%.</small>
+        {% elif field.name == 'actual_writeoff_percent' %}
+          {{ field }}
+          <output class="apsd-achievement" data-writeoff-status data-target="{{ checkpoint.form.writeoff_target|default_if_none:''|unlocalize }}" data-status="{{ checkpoint.form.writeoff_status }}" aria-live="polite">{% if checkpoint.form.writeoff_status == 'Green' %}Ногоон{% elif checkpoint.form.writeoff_status == 'Red' %}Улаан{% else %}—{% endif %}</output>
+          <small>Gate 2 7.2 зорилт: {{ checkpoint.form.writeoff_target|default_if_none:'—' }}%. Зорилтоос ихгүй бол ногоон, их бол улаан.</small>
         {% else %}{{ field }}{% endif %}
         {{ field.errors }}
         {% if field.field.responsible_role %}<small>{{ field.field.responsible_role }}</small>{% endif %}
@@ -31,7 +35,7 @@
     {% endfor %}
     {% for upload in checkpoint.upload_fields %}
       <div class="gate0-file-slot">
-        <label for="{{ upload.field.id_for_label }}">{{ upload.field.label }}</label>
+        <label for="{{ upload.field.id_for_label }}">{% if upload.field.field.gate_number %}<span class="field-number">{{ upload.field.field.gate_number }}</span> {% endif %}{{ upload.field.label }}</label>
         {% for item in upload.files %}
           <a class="attachment-link" href="{% url 'download_attachment' item.pk %}">{{ item.attachment_name }}</a>
           <small>{{ item.actor }} · {{ item.created|date:'Y-m-d H:i' }}</small>
@@ -43,3 +47,14 @@
   </form>
 </section>
 {% endfor %}
+<section class="panel padded">
+  <fieldset class="gate0-identity launch-decision">
+    <legend>Шийдвэр</legend>
+    <small><em>Яаж үргэлжлүүлэх вэ?</em></small>
+    <form method="post">
+      {% csrf_token %}
+      {% include 'gate0_fields.html' with form=launch_decision_form %}
+      {% if editable %}<button class="button" name="action" value="launch_decision_save">Хадгалах</button>{% endif %}
+    </form>
+  </fieldset>
+</section>

@@ -7,6 +7,9 @@ from django.test import TestCase
 from django.contrib.auth.models import User,Group
 from .models import Food,Supplier,Ingredient,RecipeLine
 
+def valid_day7():
+    return {'checked_date':'2026-11-01','sample_weight_g':'150','sample_result':'within','complaints_count':'0'}
+
 def valid_gate2():
     """Gate 2 section 1 (Масс туршилт) values required before submission or approval."""
     from .test_gate2_mass_trial import COMPLETE
@@ -217,7 +220,7 @@ class DevelopmentTests(TestCase):
         url='/food/%s/'%self.food.pk
         with tempfile.TemporaryDirectory() as media, self.settings(MEDIA_ROOT=media):
             def upload(day=7,content=b'first report'):
-                return self.client.post(url,{'action':'checkpoint_save','day':day,
+                return self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':day,
                     'report':SimpleUploadedFile('quality.pdf',content,content_type='application/pdf')})
             self.assertEqual(upload(14).status_code,302)
             self.assertTrue(Activity.objects.filter(food=self.food,attachment_stage='launch').exists())
@@ -255,7 +258,8 @@ class DevelopmentTests(TestCase):
         self.assertContains(page,'type="file"',count=2)
         self.assertNotContains(page,'name="sample_weight"')
         form=page.context['checkpoint_cards'][0]['form']
-        self.assertNotIn('complaints_count',form.fields)
+        self.assertIn('complaints_count',form.fields)
+        self.assertTrue(form.fields['complaints_count'].disabled)
         self.assertIn('complaints_count',page.context['checkpoint_cards'][1]['form'].fields)
         self.assertFalse(form.fields['checked_date'].disabled)
         self.assertFalse(form.fields['sample_result'].disabled)
@@ -263,13 +267,13 @@ class DevelopmentTests(TestCase):
         self.assertTrue(form.fields['target_apsd'].disabled)
         self.assertEqual(form.initial['target_apsd'],'10')
         checked=timezone.localdate().isoformat()
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'checked_date':checked,'sample_result':'within','actual_apsd':'999'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'checked_date':checked,'sample_result':'within','actual_apsd':'999'}).status_code,302)
         record=self.food.launch_checkpoints.get(day=7)
         self.assertEqual(record.checked_date.isoformat(),checked)
         self.assertIsNone(record.sales_snapshot)
         self.user.groups.clear(); self.user.groups.add(Group.objects.get(name='FF Planning'))
         for actual,percent,status in [('10','100.00','Green'),('9.99','99.90','Amber'),('8','80.00','Amber'),('7.99','79.90','Red'),('0','0.00','Red')]:
-            response=self.client.post(url,{'action':'checkpoint_save','day':7,'actual_apsd':actual,'sample_result':'outside','checked_date':'2099-01-01','target_apsd':'1','achievement_percent':'999'})
+            response=self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'actual_apsd':actual,'sample_result':'outside','checked_date':'2099-01-01','target_apsd':'1','achievement_percent':'999'})
             self.assertEqual(response.status_code,302)
             record.refresh_from_db()
             self.assertEqual(record.sample_result,'within')
@@ -288,35 +292,35 @@ class DevelopmentTests(TestCase):
         form=self.client.get(url).context['checkpoint_cards'][0]['form']
         self.assertTrue(form.fields['checked_date'].disabled)
         self.assertFalse(form.fields['actual_apsd'].disabled)
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'actual_apsd':'8','sample_result':'outside','checked_date':'2099-01-01'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'actual_apsd':'8','sample_result':'outside','checked_date':'2099-01-01'}).status_code,302)
         record.refresh_from_db()
         self.assertEqual(record.sample_result,'within')
         self.assertEqual(record.checked_date.isoformat(),checked)
 
-    def test_day7_action_required_only_for_conditional_or_outside_results(self):
+    def test_day7_action_required_only_for_failed_results(self):
         from datetime import timedelta
         from django.utils import timezone
         self.food.stage='launch'; self.food.launched_at=timezone.now()-timedelta(days=8); self.food.save()
         self.user.groups.add(Group.objects.get(name='Food Science'))
         url='/food/%s/' % self.food.pk
         with tempfile.TemporaryDirectory() as media,self.settings(MEDIA_ROOT=media):
-            for result in ['conditional','outside']:
-                response=self.client.post(url,{'action':'checkpoint_save','day':7,'sample_result':result,'action_plan':'  ','report':SimpleUploadedFile('invalid.pdf',b'not saved')})
+            for result in ['outside']:
+                response=self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'sample_result':result,'action_plan':'  ','report':SimpleUploadedFile('invalid.pdf',b'not saved')})
                 self.assertEqual(response.status_code,200)
                 form=response.context['checkpoint_cards'][0]['form']
                 self.assertIn('action_plan',form.errors)
                 self.assertTrue(form.action_required)
                 self.assertFalse(self.food.launch_checkpoints.exists())
                 self.assertFalse(self.food.activities.filter(attachment_stage='launch').exists())
-            payload={'action':'checkpoint_save','day':7,'sample_result':'conditional','action_plan':'Adjust cooling; Food Science; tomorrow','report':SimpleUploadedFile('report.pdf',b'quality report')}
+            payload={**valid_day7(),'action':'checkpoint_save','day':7,'sample_result':'conditional','action_plan':'Adjust cooling; Food Science; tomorrow','report':SimpleUploadedFile('report.pdf',b'quality report')}
             self.assertEqual(self.client.post(url,payload).status_code,302)
             record=self.food.launch_checkpoints.get(day=7)
             self.assertEqual(record.sample_result,'conditional')
             self.assertEqual(record.within_tolerance,'no')
             self.assertEqual(record.action_plan,'Adjust cooling; Food Science; tomorrow')
             self.assertEqual(self.food.activities.filter(attachment_slot='L7F8').count(),1)
-            self.assertTrue(self.client.get(url).context['checkpoint_cards'][0]['form'].action_required)
-            self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'sample_result':'within','action_plan':'irrelevant'}).status_code,302)
+            self.assertFalse(self.client.get(url).context['checkpoint_cards'][0]['form'].action_required)
+            self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'sample_result':'within','action_plan':'irrelevant'}).status_code,302)
             record.refresh_from_db()
             self.assertEqual(record.action_plan,'')
             self.assertFalse(self.client.get(url).context['checkpoint_cards'][0]['form'].action_required)
@@ -328,12 +332,12 @@ class DevelopmentTests(TestCase):
         self.user.is_superuser=True; self.user.save()
         url='/food/%s/' % self.food.pk
         for key,value in [('checked_date','not-a-date'),('sample_result','unknown'),('actual_apsd','-1'),('actual_apsd','1.001')]:
-            response=self.client.post(url,{'action':'checkpoint_save','day':7,key:value})
+            response=self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,key:value})
             self.assertEqual(response.status_code,200)
             self.assertIn(key,response.context['checkpoint_cards'][0]['form'].errors)
         self.assertFalse(self.food.launch_checkpoints.exists())
         self.food.review_status='manager'; self.food.save()
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'actual_apsd':'10'}).status_code,403)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'actual_apsd':'10'}).status_code,403)
 
     def test_day14_roles_complaints_and_apsd_do_not_overwrite_day7(self):
         from datetime import timedelta
@@ -344,8 +348,8 @@ class DevelopmentTests(TestCase):
         self.food.stage='launch'; self.food.launched_at=timezone.now()-timedelta(days=15); self.food.save()
         self.user.groups.add(Group.objects.get(name='Food Science'))
         url='/food/%s/' % self.food.pk
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'sample_result':'within','checked_date':'2026-11-01'}).status_code,302)
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'sample_result':'within','checked_date':'2026-11-08','complaints_count':'999','actual_apsd':'999'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'sample_result':'within','checked_date':'2026-11-01'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'sample_result':'within','checked_date':'2026-11-08','complaints_count':'999','actual_apsd':'999'}).status_code,302)
         day14=self.food.launch_checkpoints.get(day=14)
         self.assertIsNone(day14.complaints_count)
         self.assertIsNone(day14.sales_snapshot)
@@ -355,21 +359,21 @@ class DevelopmentTests(TestCase):
         self.assertTrue(form.fields['checked_date'].disabled)
         self.assertTrue(form.fields['sample_result'].disabled)
         self.assertTrue(form.fields['actual_apsd'].disabled)
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'complaints_count':'0'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'complaints_count':'0'}).status_code,302)
         day14.refresh_from_db()
         self.assertEqual(day14.complaints_count,0)
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'complaints_count':'3','sample_result':'outside','actual_apsd':'999','checked_date':'2099-01-01'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'complaints_count':'3','sample_result':'outside','actual_apsd':'999','checked_date':'2099-01-01'}).status_code,302)
         day14.refresh_from_db()
         self.assertEqual(day14.complaints_count,3)
         self.assertEqual(day14.sample_result,'within')
         self.assertEqual(day14.checked_date.isoformat(),'2026-11-08')
         self.assertIsNone(day14.sales_snapshot)
         for invalid in ['-1','1.5','2147483648']:
-            response=self.client.post(url,{'action':'checkpoint_save','day':14,'complaints_count':invalid})
+            response=self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'complaints_count':invalid})
             self.assertEqual(response.status_code,200)
             self.assertIn('complaints_count',response.context['checkpoint_cards'][1]['form'].errors)
         self.user.groups.clear(); self.user.groups.add(Group.objects.get(name='FF Planning'))
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'actual_apsd':'8','complaints_count':'999','sample_result':'outside'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'actual_apsd':'8','complaints_count':'999','sample_result':'outside'}).status_code,302)
         day14.refresh_from_db()
         self.assertEqual(day14.complaints_count,3)
         self.assertEqual(day14.sales_snapshot,Decimal('8'))
@@ -392,20 +396,20 @@ class DevelopmentTests(TestCase):
         self.user.groups.add(Group.objects.get(name='Food Science'))
         url='/food/%s/' % self.food.pk
         with tempfile.TemporaryDirectory() as media,self.settings(MEDIA_ROOT=media):
-            self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'sample_result':'within','report':SimpleUploadedFile('day7.pdf',b'day7')}).status_code,302)
-            for result in ['conditional','outside']:
-                response=self.client.post(url,{'action':'checkpoint_save','day':14,'sample_result':result,'report':SimpleUploadedFile('blocked.pdf',b'blocked')})
+            self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'sample_result':'within','report':SimpleUploadedFile('day7.pdf',b'day7')}).status_code,302)
+            for result in ['outside']:
+                response=self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'sample_result':result,'report':SimpleUploadedFile('blocked.pdf',b'blocked')})
                 self.assertEqual(response.status_code,200)
                 cards=response.context['checkpoint_cards']
                 self.assertIn('action_plan',cards[1]['form'].errors)
                 self.assertFalse(cards[0]['form'].errors)
                 self.assertFalse(self.food.launch_checkpoints.filter(day=14).exists())
             for name,body in [('day14.pdf',b'first'),('day14-revised.pdf',b'revised')]:
-                response=self.client.post(url,{'action':'checkpoint_save','day':14,'sample_result':'conditional','action_plan':'Recheck; Food Science; tomorrow','report':SimpleUploadedFile(name,body)})
+                response=self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'sample_result':'conditional','action_plan':'Recheck; Food Science; tomorrow','report':SimpleUploadedFile(name,body)})
                 self.assertEqual(response.status_code,302)
             page=self.client.get(url)
             self.assertContains(page,'Day 14 – 14 дэх өдрийн шалгалт')
-            self.assertContains(page,'14 дэх өдрийн чанарын шалгалтын тайлан, зураг')
+            self.assertContains(page,'Чанарын шалгалтын тайлан, зураг (файл)')
             self.assertContains(page,'type="file"',count=2)
             self.assertEqual(len(page.context['checkpoint_cards'][0]['upload_fields'][0]['files']),1)
             self.assertEqual(len(page.context['checkpoint_cards'][1]['upload_fields'][0]['files']),2)
@@ -415,13 +419,13 @@ class DevelopmentTests(TestCase):
             download=self.client.get('/attachments/%s/' % activity.pk)
             self.assertEqual(b''.join(download.streaming_content),b'revised')
             download.close()
-            self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'sample_result':'within','action_plan':'irrelevant'}).status_code,302)
+            self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'sample_result':'within','action_plan':'irrelevant'}).status_code,302)
             self.assertEqual(self.food.launch_checkpoints.get(day=14).action_plan,'')
             self.user.groups.clear()
             page=self.client.get(url)
             self.assertNotContains(page,'type="file"')
             self.assertContains(page,'day14-revised.pdf')
-            self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'complaints_count':'1'}).status_code,403)
+            self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'complaints_count':'1'}).status_code,403)
 
     def test_launch_reentry_waits_for_manual_gate3_transition(self):
         from datetime import timedelta
@@ -434,6 +438,11 @@ class DevelopmentTests(TestCase):
         self.client.get('/food/%s/'%self.food.pk)
         self.food.refresh_from_db();self.assertEqual(self.food.stage,'launch')
         self.user.groups.add(Group.objects.get(name='FF Planning'))
+        from .models import LaunchCheckpoint
+        LaunchCheckpoint.objects.create(development=self.food,day=7,checked_date='2026-11-01',sample_weight_g=150,sample_result='within',complaints_count=0)
+        LaunchCheckpoint.objects.create(development=self.food,day=14,checked_date='2026-11-01',sample_weight_g=150,sample_result='within',complaints_count=0)
+        from .models import LaunchDecision
+        LaunchDecision.objects.create(development=self.food,decision='continue')
         self.client.post('/food/%s/'%self.food.pk,{'action':'submit'})
         self.food.refresh_from_db();self.assertEqual(self.food.stage,'gate3')
         event=self.food.gate_transitions.get(action='submit')
@@ -452,7 +461,7 @@ class DevelopmentTests(TestCase):
             cards=self.client.get(url).context['checkpoint_cards']
             self.assertTrue(all(card['editable'] for card in cards))
             for day in (7,14):
-                payload={'action':'checkpoint_save','day':day,'checked_date':'2026-11-01','sample_result':'within'}
+                payload={**valid_day7(),'action':'checkpoint_save','day':day,'checked_date':'2026-11-01','sample_result':'within'}
                 self.assertEqual(self.client.post(url,payload).status_code,302)
                 self.assertEqual(self.food.launch_checkpoints.get(day=day).sample_result,'within')
         from .launch import CheckpointForm
@@ -466,11 +475,13 @@ class DevelopmentTests(TestCase):
         for role in ['Food Science','FF Planning','QA','Category Manager (MD)']:
             self.user.groups.clear();self.user.groups.add(Group.objects.get(name=role))
             for day in [7,14]:
-                expected=302 if role in ['Food Science','FF Planning']+(['QA'] if day==14 else []) else 403
-                self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':day,'sample_result':'within'}).status_code,expected,(role,day))
+                expected=302 if role in ['Food Science','FF Planning','QA'] else 403
+                self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':day,'sample_result':'within'}).status_code,expected,(role,day))
         self.food.launched_at=timezone.now();self.food.save()
         self.user.is_superuser=True;self.user.save()
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':'7'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':'7'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':'14'}).status_code,302)
+        self.assertEqual(self.client.post(url,{'action':'launch_decision_save','decision':'continue'}).status_code,302)
         self.assertEqual(self.client.post(url,{'action':'submit'}).status_code,302)
         self.food.refresh_from_db();self.assertEqual(self.food.stage,'gate3')
 
@@ -603,17 +614,17 @@ class DevelopmentTests(TestCase):
         from datetime import timedelta
         self.food.stage='launch'; self.food.launched_at=timezone.now()-timedelta(days=15); self.food.save()
         url='/food/%s/'%self.food.pk
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':'7','within_tolerance':'yes'}).status_code,403)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':'7','within_tolerance':'yes'}).status_code,403)
         self.user.groups.add(Group.objects.get(name='Food Science'))
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7,'sample_result':'within'}).status_code,302)
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'sample_result':'outside','action_plan':'Replace sample; Food Science; tomorrow'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7,'sample_result':'within'}).status_code,302)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':14,'sample_result':'outside','action_plan':'Replace sample; Food Science; tomorrow'}).status_code,302)
         form=Gate3Form({'shelf_samples_day7_day14':'no','day14_sample_within_tolerance':'yes'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['shelf_samples_day7_day14'],'yes')
         self.assertEqual(form.cleaned_data['day14_sample_within_tolerance'],'no')
         self.food.stage='gate3'; self.food.save()
         self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7}).status_code,403)
+        self.assertEqual(self.client.post(url,{**valid_day7(),'action':'checkpoint_save','day':7}).status_code,403)
 
     def test_gate3_handover_checklist_recomputed_from_sources(self):
         from .gate2 import save_brief as save_gate2
@@ -1612,6 +1623,11 @@ class DevelopmentTests(TestCase):
         self.act_as('Merchandising Director','approve')
         self.assertEqual(self.food.stage,'launch')
         self.assertIsNotNone(self.food.launched_at)
+        from .models import LaunchCheckpoint
+        LaunchCheckpoint.objects.create(development=self.food,day=7,checked_date='2026-11-01',sample_weight_g=150,sample_result='within',complaints_count=0)
+        LaunchCheckpoint.objects.create(development=self.food,day=14,checked_date='2026-11-01',sample_weight_g=150,sample_result='within',complaints_count=0)
+        from .models import LaunchDecision
+        LaunchDecision.objects.create(development=self.food,decision='continue')
         self.act_as('FF Planning','submit')
         self.assertEqual(self.food.stage,'gate3')
         self.act_as('Category Manager (MD)','submit')

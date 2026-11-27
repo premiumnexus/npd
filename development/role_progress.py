@@ -9,7 +9,7 @@ def role_progress(food):
         recorded_days=set(food.launch_checkpoints.values_list('day',flat=True))
         rows=[]
         for day,roles,task in [
-            (7,[SCIENCE,PLANNING],'Дээж ба борлуулалтын файл'),
+            (7,[SCIENCE,PLANNING,QA],'Дээж, борлуулалт, акт, гомдол'),
             (14,[SCIENCE,PLANNING,QA],'Хадгалах хугацааны дээж, борлуулалт, гомдол'),
             (45,[PLANNING],'Gate 3 руу шилжүүлэх'),
         ]:

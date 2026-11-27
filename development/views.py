@@ -1,4 +1,5 @@
 import csv
+from contextlib import nullcontext
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db import transaction
@@ -17,7 +18,8 @@ from .gate3 import Gate3Form, initial_brief as initial_gate3, save_brief as save
 from .gate3_typed import ROOT_CAUSES,LESSON_TAGS
 from .timing import record_transition,gate_timing
 from .role_progress import role_progress
-from .launch import checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,save_checkpoint
+from .db import write_transaction
+from .launch import checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,save_checkpoint,LaunchDecisionForm,save_launch_decision
 
 def allowed(user, role):
     return user.is_superuser or user.groups.filter(name=role).exists()
@@ -81,8 +83,10 @@ def create_food(request):
 @login_required
 @require_http_methods(['GET','POST'])
 def detail(request,pk):
-    with transaction.atomic():
-        food = get_object_or_404(Food.objects.select_for_update().prefetch_related('activities__gate0_file','activities__gate1_file','activities__gate2_file','activities__gate3_file','activities__actor'),pk=pk)
+    with write_transaction() if request.method=='POST' else nullcontext():
+        foods=Food.objects.prefetch_related('activities__gate0_file','activities__gate1_file','activities__gate2_file','activities__gate3_file','activities__actor')
+        if request.method=='POST': foods=foods.select_for_update()
+        food = get_object_or_404(foods,pk=pk)
         view_stage=request.GET.get('gate',food.stage)
         if view_stage not in dict(STAGES): raise Http404
         viewing_current=view_stage == food.stage
@@ -98,6 +102,8 @@ def detail(request,pk):
         gate1form = Gate1Form(initial=initial_gate1(food),food=food)
         gate2form = Gate2Form(initial=initial_gate2(food),food=food)
         gate3form = Gate3Form(initial=initial_gate3(food),food=food)
+        launch_decision_form=LaunchDecisionForm(food=food)
+        for field in launch_decision_form.fields.values(): field.disabled=not editable
         for field in gate3form.fields.values(): field.disabled = field.disabled or not editable
         for field in gate2form.fields.values(): field.disabled = field.disabled or not editable
         for field in gate1form.fields.values(): field.disabled = field.disabled or not editable
@@ -114,7 +120,7 @@ def detail(request,pk):
                         card['form']=checkpoint_error['form']
                         for upload in card['upload_fields']:
                             upload['field']=card['form'][upload['field'].name]
-            return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'role_progress':role_progress(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'packaging_form':packaging_form,'ingredient_unit_cost':food.unit_cost,**rights})
+            return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'role_progress':role_progress(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'launch_decision_form':launch_decision_form,'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'packaging_form':packaging_form,'ingredient_unit_cost':food.unit_cost,**rights})
         if request.method == 'POST':
             action = request.POST.get('action')
             if action == 'slot_upload':
@@ -152,6 +158,11 @@ def detail(request,pk):
                             text='Launch GO / Day %s / %s' % (day,label),
                             attachment=uploaded,attachment_name=uploaded.name[:255],
                             attachment_stage='launch',attachment_slot=slot)
+            elif action == 'launch_decision_save':
+                if food.stage!='launch' or not editable: return HttpResponseForbidden('Launch GO шийдвэрийг засах эрхгүй байна.')
+                launch_decision_form=LaunchDecisionForm(request.POST,food=food)
+                if not launch_decision_form.is_valid(): return render_page()
+                save_launch_decision(food,request.user,launch_decision_form)
             elif not editable: return HttpResponseForbidden('Хөгжүүлэлт түгжигдсэн эсвэл өөр баг хариуцаж байна')
             elif action in ['gate1_packaging_save','gate2_packaging_save']:
                 if food.stage not in ['gate1','gate2'] or action != food.stage+'_packaging_save':

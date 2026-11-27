@@ -35,7 +35,7 @@ class LaunchCheckpointDevelopmentTests(TestCase):
         payload = {
             'action': 'checkpoint_save', 'day': day,
             'checked_date': '2026-11-01' if day == 7 else '2026-11-08',
-            'sample_result': 'within', 'actual_apsd': '8',
+            'sample_result': 'within', 'actual_apsd': '8', 'sample_weight_g':'150', 'complaints_count':'0',
         }
         payload.update(values)
         response = self.client.post(reverse('detail', args=[development.pk]), payload)
@@ -91,7 +91,7 @@ class LaunchCheckpointDevelopmentTests(TestCase):
         self.assertEqual(LaunchCheckpoint.objects.count(), 4)
         page = self.client.get(reverse('detail', args=[self.development.pk]))
         self.assertEqual(page.context['checkpoint_cards'][1]['form'].initial['sample_result'], 'outside')
-        self.assertIsNone(page.context['checkpoint_cards'][1]['form'].initial['complaints_count'])
+        self.assertEqual(page.context['checkpoint_cards'][1]['form'].initial['complaints_count'],0)
         other_page = self.client.get(reverse('detail', args=[other.pk]))
         self.assertEqual(other_page.context['checkpoint_cards'][1]['form'].initial['sample_result'], 'within')
         self.assertEqual(other_page.context['checkpoint_cards'][1]['form'].initial['complaints_count'], 2)

@@ -151,10 +151,30 @@ class Food(models.Model):
         return self.role
     def __str__(self): return self.name
 
+class LaunchDecision(models.Model):
+    development=models.OneToOneField(Food,on_delete=models.CASCADE,related_name='launch_decision')
+    decision=models.CharField('Шийдвэр',max_length=20,blank=True,choices=[('continue','Үргэлжлүүлэх'),('fix','Засах'),('stop','Зогсоох')])
+
+
+class LaunchAction(models.Model):
+    decision=models.ForeignKey(LaunchDecision,on_delete=models.CASCADE,related_name='actions')
+    position=models.PositiveIntegerField(default=0)
+    what=models.TextField('Юу')
+    who=models.CharField('Хэн',max_length=200)
+    when=models.DateField('Хэзээ')
+
+    class Meta:
+        ordering=['position','pk']
+        constraints=[models.UniqueConstraint(fields=['decision','position'],name='launch_action_position')]
+
+
 class LaunchCheckpoint(models.Model):
     development=models.ForeignKey(Food,on_delete=models.CASCADE,related_name='launch_checkpoints')
     day=models.PositiveSmallIntegerField('Өдөр',choices=[(7,'Day 7'),(14,'Day 14')])
     checked_date=models.DateField('Шалгасан огноо',null=True,blank=True)
+    sample_weight_g=models.DecimalField('Дээжийн жин (г)',max_digits=14,decimal_places=3,null=True,blank=True,validators=NONNEGATIVE)
+    actual_writeoff_percent=models.DecimalField('Бодит акт %',max_digits=5,decimal_places=2,null=True,blank=True,validators=NONNEGATIVE+[MaxValueValidator(100)])
+    promotion_period=models.CharField('Урамшуулалтай хугацаа эсэх',max_length=3,blank=True,choices=[('yes','Тийм'),('no','Үгүй')])
     sample_result=models.CharField('Дээжийн үр дүн',max_length=11,blank=True,choices=[('within','Хязгаарт багтсан'),('conditional','Нөхцөлтэй'),('outside','Хязгаараас гарсан')])
     action_plan=models.TextField('Арга хэмжээ, хариуцагч, хугацаа',blank=True)
     within_tolerance=models.CharField('Зөвшөөрөх хүрээнд байгаа эсэх',max_length=3,blank=True,choices=[('yes','Тийм'),('no','Үгүй')])

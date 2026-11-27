@@ -4,7 +4,7 @@ A Django application for CU food development, recipe costing, gate approvals and
 
 ## Run locally
 
-The local demo uses SQLite and the pinned dependencies in `requirements-local.txt`:
+The local demo uses SQLite and the pinned dependencies in `requirements-local.txt`. Detail-page reads do not hold a transaction. Detail-page writes acquire SQLite's writer reservation before reading form state (`BEGIN IMMEDIATE`), with a 30-second busy timeout, so concurrent saves wait instead of failing a deferred read-to-write upgrade. PostgreSQL retains the normal atomic transaction and row-lock behavior.
 
 ```powershell
 python -m pip install -r requirements-local.txt
@@ -153,11 +153,15 @@ Gate 2 production fields 1.1–1.10 are required, marked with a red asterisk: dr
 
 ## Launch GO and Gate 3
 
-Launch GO's Day 7 and Day 14 checklists are editable immediately, even when the launch timestamp is missing or in the future. Food Science edits check date and sample result; FF Planning edits actual APSD; QA edits the Day 14 complaint count. Each role also requires Launch edit permission. Launch timestamps remain historical information and are retained across returns and re-entry.
+Launch GO's Day 7 and Day 14 checklists are editable immediately, even when the launch timestamp is missing or in the future. Food Science edits check date, sample result and Day 7 sample weight; FF Planning edits actual APSD and Day 7 write-off/promotion fields; QA edits complaints on either day. Each role also requires Launch edit permission. Launch timestamps remain historical information and are retained across returns and re-entry.
 
-Target APSD is read-only from Gate 2 section 7.1. Achievement is actual APSD / target APSD * 100: Green at 100% or above, Amber from 80% to below 100%, and Red below 80%. Missing or zero targets produce no percentage. An action, owner and deadline are required only for conditional or outside-limit sample results. Each day has one report/photo slot with upload history. Gate 2 quality standards remain available as reference documents.
+Day 7 contains fields 1.1–1.11 with the subtitle Төлөвлөгөөний дагуу эхэлж байна уу? Day 14 contains the same fields numbered 2.1–2.11 inside its own section. Check date (.1), sample weight in grams (.2), sample result (.3: Тэнцсэн / Засвартай / Тэнцээгүй) and complaint count (.9) are required for their responsible team's save and before advancing to Gate 3. Reason/action (.4) is required only for Тэнцээгүй and optional for Засвартай. Actual APSD (.5), read-only target APSD (.6), calculated achievement (.7), actual write-off/status (.8), promotion-period check (.10) and quality report/photo history (.11) complete each section. Write-off status compares against Gate 2 7.2: Green at or below target, Red above, Pending if either value is missing. Each day stores its own values and retains its existing L7F8 or L14F10 file history.
 
-FF Planning can move Launch GO to Gate 3 immediately through the usual submission button. Gate 3 has no 45-day time lock: editing, files and review actions follow the existing role permissions and review state. Visiting the dashboard or detail page never advances the stage automatically. The retired `open_due_gate3` command is a harmless no-op for compatibility with existing scheduled calls.
+Target APSD is read-only from Gate 2 section 7.1. Achievement is actual APSD / target APSD * 100: Green at 100% or above, Amber from 80% to below 100%, and Red below 80%. Missing or zero targets produce no percentage. Each day has one report/photo slot with upload history. Gate 2 quality standards remain available as reference documents.
+
+Launch GO's Шийдвэр section follows the Day 14 checklist, with the subtitle Яаж үргэлжлүүлэх вэ? Decision 3.1 is required (Үргэлжлүүлэх / Засах / Зогсоох). Optional action rows 3.2 store what, who and a date; rows can be added, edited and removed, and each entered row must be complete. The decision must be saved before advancing to Gate 3. Saving a decision records it without automatically changing the stage. Launch editors may save it; historical, completed and review-state views remain read-only.
+
+FF Planning can move Launch GO to Gate 3 through the usual submission button after completing required fields, without waiting for elapsed days. Gate 3 has no 45-day time lock: editing, files and review actions follow the existing role permissions and review state. Visiting the dashboard or detail page never advances the stage automatically. The retired `open_due_gate3` command is a harmless no-op for compatibility with existing scheduled calls.
 
 Gate 3 compares actual sales, write-offs and margin with Gate 0 targets, reads Day 7/14 sample results, and captures complaints, feedback, root causes and lessons. Handover checks recognize Gate 2 values and relevant Gate 2 file records. The Recipes and Lessons pages expose the corresponding saved information.
 
