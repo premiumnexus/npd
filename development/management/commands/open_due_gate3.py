@@ -1,8 +1,6 @@
 from django.core.management.base import BaseCommand
-from development.launch import open_due_reviews
 
 class Command(BaseCommand):
-    help='Open Gate 3 for projects that have reached Day 45 after Launch GO.'
+    help='Retired: Gate 3 is entered manually without an elapsed-day restriction.'
     def handle(self,*args,**options):
-        count=open_due_reviews()
-        self.stdout.write('Opened %s Gate 3 reviews.'%count)
+        self.stdout.write('Automatic Gate 3 opening is disabled. Move from Launch GO to Gate 3 in the workflow at any time.')

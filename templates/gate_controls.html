@@ -3,7 +3,7 @@
 <form method="post">
   {% csrf_token %}
   <textarea name="note" placeholder="Шийдвэрийн тайлбар (буцаах, шатлан шийдвэрлүүлэхэд заавал оруулна)" aria-label="Шийдвэрийн тайлбар" maxlength="1000"></textarea>
-  {% if can_submit %}<button class="button full" name="action" value="submit">{% if food.stage == 'launch' %}Day 45 · Gate 3 руу шилжүүлэх{% else %}Gate хяналтад илгээх{% endif %}</button>{% endif %}
+  {% if can_submit %}<button class="button full" name="action" value="submit">{% if food.stage == 'launch' %}Gate 3 руу шилжүүлэх{% else %}Gate хяналтад илгээх{% endif %}</button>{% endif %}
   {% if can_qa %}<button class="button full" name="action" value="qa_accept">QA зөвшөөрөл өгөх</button>{% endif %}
   {% if can_decide %}<button class="button full" name="action" value="approve">{% if food.review_status == 'manager' and food.stage == 'gate2' or food.review_status == 'manager' and food.stage == 'gate3' %}Зөвшөөрч, захирлын шийдвэрт шилжүүлэх{% else %}Батлах{% endif %}</button>{% endif %}
   {% if can_escalate %}<button class="secondary full" name="action" value="escalate">Захирлаар шийдвэрлүүлэх</button>{% endif %}

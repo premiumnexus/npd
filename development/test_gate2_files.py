@@ -17,7 +17,7 @@ from .models import Activity, Food, Gate2File
 
 
 class Gate2FileStorageTests(TestCase):
-    supporting_slots = ['G2-F%s' % number for number in range(1, 11)]
+    supporting_slots = ['G2-F%s' % number for number in range(1, 10)]
 
     def setUp(self):
         self.media = tempfile.TemporaryDirectory()
@@ -56,7 +56,7 @@ class Gate2FileStorageTests(TestCase):
         response.close()
         return body
 
-    def test_all_eleven_slots_store_files_in_the_dedicated_gate2_table(self):
+    def test_active_supporting_slots_store_files_in_the_dedicated_gate2_table(self):
         for slot in self.supporting_slots:
             body = slot.encode('ascii')
             self.assertEqual(self.upload(slot=slot, name=slot + '.pdf', body=body).status_code, 302)
@@ -217,7 +217,7 @@ class Gate2FileStorageTests(TestCase):
         self.assertFalse(other.activities.exclude(attachment='').exists())
 
     def test_invalid_slots_and_empty_files_do_not_create_records(self):
-        for slot in ('', 'unknown', 'G0-F1', 'G1-F1', 'G2-F11', 'G2-F12', 'G2-F14'):
+        for slot in ('', 'unknown', 'G0-F1', 'G1-F1', 'G2-F10', 'G2-F11', 'G2-F12', 'G2-F14'):
             self.assertEqual(self.upload(slot=slot).status_code, 403)
         self.assertEqual(self.upload(body=b'').status_code, 302)
         self.assertEqual(self.client.post(self.url, {'action': 'slot_upload', 'slot': 'G2-F1'}).status_code, 302)

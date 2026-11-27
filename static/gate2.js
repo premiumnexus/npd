@@ -1,6 +1,22 @@
 document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('form').forEach(form=>{
     if(form.elements.namedItem('action')?.value!=='gate2_save') return;
+    const promotion=form.elements.namedItem('marketing_has_promotion');
+    if(promotion){
+      const updatePromotion=()=>{
+        const required=promotion.value==='yes';
+        ['marketing_promotion','marketing_budget','marketing_start_date','marketing_end_date'].forEach(name=>{
+          const input=form.elements.namedItem(name);
+          if(!input) return;
+          input.setAttribute('aria-required',String(required));
+          const star=input.closest('.gate0-field')?.querySelector('[data-promotion-required]');
+          if(star) star.hidden=!required;
+        });
+      };
+      promotion.addEventListener('change',updatePromotion);
+      form.addEventListener('reset',()=>setTimeout(updatePromotion,0));
+      updatePromotion();
+    }
     const invoice=form.elements.namedItem('vendor_invoice_price');
     if(invoice){
       const read=value=>value===undefined || value===null || String(value).trim()===''?null:Number(value);
@@ -33,32 +49,6 @@ document.addEventListener('DOMContentLoaded',()=>{
         recipeStatus=event.detail.status;
         updateMargins();
       });
-    }
-    const mode=form.elements.namedItem('day45_target_confirmed');
-    if(mode){
-      const targets=['day45_units_store_day','day45_writeoff_percent','day45_margin_percent'].map(name=>form.elements.namedItem(name));
-      const reason=form.elements.namedItem('day45_change_reason');
-      const reasonWrapper=reason?.closest('.gate0-field');
-      let previousMode=mode.value;
-      const updateTargets=()=>{
-        const changed=mode.value==='changed';
-        if(reasonWrapper) reasonWrapper.hidden=!changed;
-        if(reason) reason.disabled=!changed;
-        targets.forEach(input=>{
-          if(!input) return;
-          if(!changed){
-            if(previousMode==='changed') input.dataset.changedValue=input.value;
-            input.value=input.dataset.gate0Value || '';
-            input.disabled=true;
-          }else{
-            input.disabled=false;
-            if(previousMode!=='changed' && input.dataset.changedValue!==undefined) input.value=input.dataset.changedValue;
-          }
-        });
-        previousMode=mode.value;
-      };
-      mode.addEventListener('change',updateTargets);
-      updateTargets();
     }
     const launch=form.elements.namedItem('launch_date');
     const original=form.elements.namedItem('original_launch_date');

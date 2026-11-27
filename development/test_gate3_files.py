@@ -1,5 +1,4 @@
 """Gate 3 file records retain their process identity, versions and downloads."""
-from datetime import timedelta
 import tempfile
 
 from django.contrib.auth.models import Group, User
@@ -17,7 +16,7 @@ class Gate3FileTests(TestCase):
             user=User.objects.create_user('gate3-file-editor')
             user.groups.add(Group.objects.get(name='Category Manager (MD)'))
             development=Food.objects.create(name='Gate 3 files',owner=user,stage='gate3',
-                launched_at=timezone.now()-timedelta(days=60))
+                launched_at=timezone.now())
             self.client.force_login(user)
             url=reverse('detail',args=[development.pk])
             for number in (1,2,3):

@@ -11,6 +11,7 @@ from django.utils import timezone
 
 
 SELECTIONS = {
+    2: {'marketing_channels':'Gate2MarketingChannel'},
     0: {'improvement_reasons': 'Gate0ImprovementReason', 'daypart': 'Gate0Daypart',
         'first_food_safety_risk': 'Gate0Allergen', 'high_risk_inputs': 'Gate0HighRiskInput'},
     3: {'lesson_tags': 'Gate3LessonTag'},

@@ -6,6 +6,9 @@ def record_transition(food,actor,action,from_stage,from_review,activity):
     if food.stage=='launch' and from_stage!='launch' and not food.launched_at:
         food.launched_at=activity.created
         food.save(update_fields=['launched_at'])
+    if food.stage=='gate3' and from_stage!='gate3' and not food.gate3_opened_at:
+        food.gate3_opened_at=activity.created
+        food.save(update_fields=['gate3_opened_at'])
     return event
 
 def duration(start,end):

@@ -30,8 +30,6 @@ def GateAccessQuery(user,stage,permission):
 
 def context(user,food):
     draft = food.review_status == 'draft'
-    from .launch import schedule
-    dates=schedule(food)
     rights={
         'editable':draft and access(user,food,'can_edit'),
         'can_manage_launch':draft and access(user,food,'can_edit'),
@@ -41,8 +39,6 @@ def context(user,food):
         'can_return':not food.completed and ((draft and access(user,food,'can_submit')) or (food.review_status == 'qa' and access(user,food,'can_qa_accept')) or (food.review_status in ['manager','director'] and access(user,food,'can_'+food.review_status+'_decide'))),
         'can_escalate':food.stage in ['gate0','gate1'] and food.review_status == 'manager' and access(user,food,'can_manager_decide'),
     }
-    if food.stage=='launch' and not dates['gate3_open']: rights['can_submit']=False
-    if food.stage=='gate3' and not dates['gate3_open']: rights={key:False for key in rights}
     return rights
 
 def transition(user,food,action,note):

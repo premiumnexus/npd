@@ -17,7 +17,7 @@ from .gate3 import Gate3Form, initial_brief as initial_gate3, save_brief as save
 from .gate3_typed import ROOT_CAUSES,LESSON_TAGS
 from .timing import record_transition,gate_timing
 from .role_progress import role_progress
-from .launch import schedule as launch_schedule,checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,save_checkpoint,open_gate3_if_due,open_due_reviews
+from .launch import checkpoint_cards,can_edit_checkpoint,checkpoint_slots,CheckpointForm,save_checkpoint
 
 def allowed(user, role):
     return user.is_superuser or user.groups.filter(name=role).exists()
@@ -46,7 +46,6 @@ def recipes(request):
 
 @login_required
 def dashboard(request):
-    open_due_reviews()
     today = timezone.localdate()
     month_start = today.replace(day=1)
     next_month = month_start.replace(year=today.year+1,month=1) if today.month == 12 else month_start.replace(month=today.month+1)
@@ -84,7 +83,6 @@ def create_food(request):
 def detail(request,pk):
     with transaction.atomic():
         food = get_object_or_404(Food.objects.select_for_update().prefetch_related('activities__gate0_file','activities__gate1_file','activities__gate2_file','activities__gate3_file','activities__actor'),pk=pk)
-        open_gate3_if_due(food)
         view_stage=request.GET.get('gate',food.stage)
         if view_stage not in dict(STAGES): raise Http404
         viewing_current=view_stage == food.stage
@@ -116,7 +114,7 @@ def detail(request,pk):
                         card['form']=checkpoint_error['form']
                         for upload in card['upload_fields']:
                             upload['field']=card['form'][upload['field'].name]
-            return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'role_progress':role_progress(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'launch_schedule':launch_schedule(food),'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'packaging_form':packaging_form,'ingredient_unit_cost':food.unit_cost,**rights})
+            return render(request,'detail.html',{'food':food,'timing':gate_timing(food),'role_progress':role_progress(food),'view_stage':view_stage,'view_stage_label':dict(STAGES)[view_stage],'viewing_current':viewing_current,'gate0form':gate0form,'gate1form':gate1form,'gate2form':gate2form,'gate3form':gate3form,'checkpoint_cards':cards,'gate3slots':gate3_file_slots(food),'gate2slots':gate2_file_slots(food),'gate1slots':gate1_file_slots(food),'gate0slots':file_slots(food),'stages':STAGES,'ingredient_form':ingredient_form,'packaging_form':packaging_form,'ingredient_unit_cost':food.unit_cost,**rights})
         if request.method == 'POST':
             action = request.POST.get('action')
             if action == 'slot_upload':
@@ -141,7 +139,7 @@ def detail(request,pk):
             elif action == 'checkpoint_save':
                 try: day=int(request.POST.get('day',''))
                 except (ValueError,TypeError): return HttpResponseForbidden('Хяналтын өдөр тохирохгүй байна.')
-                if not can_edit_checkpoint(request.user,food,day): return HttpResponseForbidden('Хугацаа болоогүй эсвэл энэ хяналтыг засах эрхгүй байна.')
+                if not can_edit_checkpoint(request.user,food,day): return HttpResponseForbidden('Энэ хяналтыг засах эрхгүй байна.')
                 form=CheckpointForm(request.POST,request.FILES,day=day,food=food,user=request.user)
                 if not form.is_valid():
                     checkpoint_error={'day':day,'form':form}

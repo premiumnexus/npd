@@ -1,5 +1,5 @@
 """Launch checkpoints keep each development's Day 7 and Day 14 records together."""
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.models import Group, User
@@ -24,7 +24,7 @@ class LaunchCheckpointDevelopmentTests(TestCase):
     def make_development(self, name):
         development = Food.objects.create(
             name=name, category='FF', stage='launch', owner=self.user,
-            launched_at=timezone.now() - timedelta(days=15),
+            launched_at=timezone.now(),
         )
         ensure_gate_rows(development)
         save_gate2(development, {'day45_target_confirmed': 'changed', 'day45_units_store_day': '10'})

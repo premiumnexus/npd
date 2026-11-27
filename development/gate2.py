@@ -22,13 +22,28 @@ FIELDS = [
     ('4.1','label_allergens','Орцын жагсаалтад мэдэгдсэн харшил үүсгэгчид (MNS 6648:2016)'),
     ('4.2','nutrition_info','Шим тэжээлийн мэдээлэл (100 г тутамд)'),
     ('4.3','label_checked','Шошгыг шалгасан эсэх'),
-    ('2.6','barcode_system_registration','Баркод, системийн бүртгэл'),
-    ('2.7','allocation','Хуваарилалт'),
-    ('2.8','supply_readiness','Нийлүүлэлтийн бэлэн байдал'),
-    ('2.9','marketing_plan','Маркетингийн төлөвлөгөө'),
+    ('5.7','barcode_system_registration','Баркод'),
+    ('5.5','allocation','Дэлгүүрийн тоо'),
+    ('5.6','first_order_units','Эхний захиалга (ширхэг)'),
+    ('5.8','sku_code_requested','SKU код хүссэн эсэх'),
+    ('5.9','pos_name_price_checked','POS нэр, үнийг шалгасан эсэх'),
+    ('5.10','supply_readiness','Эхний 2 долоо хоногийн түүхий эд, савлагаа бэлэн эсэх'),
+    ('5.11','cold_chain_temperature','Хадгалах температур'),
+    ('6.1','marketing_has_promotion','Урамшуулал байгаа эсэх (тийм / үгүй)'),
+    ('6.2','marketing_promotion','Урамшууллын төрөл'),
+    ('6.3','marketing_budget','Урамшууллын төсөв (₮)'),
+    ('6.4','marketing_start_date','Маркетинг эхлэх огноо'),
+    ('6.5','marketing_end_date','Маркетинг дуусах огноо'),
+    ('6.6','marketing_channels','Маркетингийн сувгууд'),
     ('1.5','quality_tolerance_baseline','Жингийн зорилт (г)'),
-    ('2.11','day45_target_confirmed','45 хоногийн зорилт баталгаажуулах'),
-    ('2.12','launch_date','Нэвтрүүлэх огноо'),
+    ('7.1','day45_units_store_day','Зорилтот APSD'),
+    ('7.2','day45_writeoff_percent','45 хоногийн акт %'),
+    ('7.3','day45_margin_percent','45 хоногийн актын дараах ашиг %'),
+    ('7.4','day45_change_reason','Зорилт өөрчилсөн шалтгаан'),
+    ('5.1','launch_date','Нэвтрүүлэх огноо'),
+    ('5.2','original_launch_date','Gate 0 төлөвлөсөн огноо'),
+    ('5.3','launch_delay_days','Төлөвлөгөөнөөс зөрсөн хоног'),
+    ('5.4','launch_date_change_reason','Огноо өөрчилсөн шалтгаан'),
 ]
 
 FILE_SLOTS = [
@@ -40,8 +55,7 @@ FILE_SLOTS = [
     ('G2-F6','HACCP / CCP төлөвлөгөө (файл)'),
     ('G2-F7','Шошгоны эцсийн загвар (файл)'),
     ('G2-F8','Савлагааны эцсийн техникийн тодорхойлолт (файл)'),
-    ('G2-F9','Маркетингийн төлөвлөгөө'),
-    ('G2-F10','Хуваарилалтын төлөвлөгөө'),
+    ('G2-F9','Маркетингийн төлөвлөгөө (файл)'),
     ('G2-F12','ISF Manual'),
     ('G2-F13','Чанарын стандарт (файл)'),
 ]
@@ -55,7 +69,7 @@ def available_file_slots(food):
 def file_slots(food):
     files=list(food.gate2_files.select_related('uploader'))
     inline_files=list(food.activities.filter(attachment_stage='gate2',attachment_slot__in=['G2-F12','G2-F13']).select_related('actor').order_by('-created','-pk'))
-    inline_numbers={'G2-F5':'1.11','G2-F1':'1.12','G2-F13':'1.13','G2-F2':'2.13','G2-F12':'2.12','G2-F3':'3.4','G2-F4':'3.5','G2-F6':'3.6','G2-F7':'4.4','G2-F8':'4.5'}
+    inline_numbers={'G2-F5':'1.11','G2-F1':'1.12','G2-F13':'1.13','G2-F2':'2.13','G2-F12':'2.12','G2-F3':'3.4','G2-F4':'3.5','G2-F6':'3.6','G2-F7':'4.4','G2-F8':'4.5','G2-F9':'6.7'}
     return [{'key':key,'label':label,'number':inline_numbers.get(key,key),'inline':key in inline_numbers,'required':key in ('G2-F5','G2-F2','G2-F3','G2-F6','G2-F7','G2-F8'),'files':[item for item in inline_files if item.attachment_slot==key] if key in ('G2-F12','G2-F13') else [item for item in files if item.slot_code==key]} for key,label in available_file_slots(food)]
 
 @transaction.atomic
@@ -91,5 +105,8 @@ def initial_brief(food):
 def save_brief(food,data):
     from .gate_storage import save_gate
     payload=dict(data)
+    if 'marketing_plan' not in payload:
+        from .models import Gate2
+        payload['marketing_plan']=Gate2.objects.filter(development_id=food.pk).values_list('marketing_plan',flat=True).first()
     if food.recipe_version is not None: payload['final_recipe_version']=food.recipe_version
     return save_gate(2,food,payload)

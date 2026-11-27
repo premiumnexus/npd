@@ -6,7 +6,6 @@
     <strong>{{ step.roles|join:' / ' }}</strong>
     <small>{{ step.task }}</small>
     {% if step.editors %}<small>Хамтран засварлах: {{ step.editors|join:', ' }}</small>{% endif %}
-    {% if step.due %}<small>{{ step.due|date:'Y-m-d H:i' }}{% if step.locked %} · Хугацаа хүлээж байна{% endif %}</small>{% endif %}
     {% if step.started_at %}<small>{{ step.started_at|date:'Y-m-d H:i' }}</small>{% endif %}
   </a>
   {% endfor %}

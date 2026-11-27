@@ -1,5 +1,5 @@
 {% load static gate_fields %}
-<script src="{% static 'gate2.js' %}?v=final-cost-7" defer></script>
+<script src="{% static 'gate2.js' %}?v=targets-9" defer></script>
 <section class="panel padded">
   <h2>Gate 2 · Үйлдвэрлэл, нэвтрүүлэлтийн бэлэн байдал</h2>
   <fieldset class="gate0-identity gate2-mass-trial">
@@ -38,6 +38,31 @@
     <div class="gate0-fields">
       {% for slot in gate2slots %}{% if slot.key == 'G2-F7' or slot.key == 'G2-F8' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}
     </div>
+  </fieldset>
+</section>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate2-readiness">
+    <legend>Нэвтрүүлэлтийн бэлэн байдал</legend>
+    <small><em>Дэлгүүрт гаргахад бэлэн үү?</em></small>
+    {% include 'gate0_fields.html' with form=gate2form fields=gate2form.readiness_fields form_id='gate2-brief-form' hide_form_messages=True %}
+  </fieldset>
+</section>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate2-marketing">
+    <legend>Нэвтрүүлэлтийн маркетинг</legend>
+    <small><em>Хэрхэн танилцуулах вэ?</em></small>
+    {% include 'gate0_fields.html' with form=gate2form fields=gate2form.marketing_fields form_id='gate2-brief-form' hide_form_messages=True %}
+    {% if gate2form.legacy_marketing_channels %}<small>Өмнөх маркетингийн сувгууд: {{ gate2form.legacy_marketing_channels }}</small>{% endif %}
+    <div class="gate0-fields">
+      {% for slot in gate2slots %}{% if slot.key == 'G2-F9' %}{% include 'gate_file_slot.html' %}{% endif %}{% endfor %}
+    </div>
+  </fieldset>
+</section>
+<section class="panel padded">
+  <fieldset class="gate0-identity gate2-targets">
+    <legend>45 хоногийн зорилт</legend>
+    <small><em>Амжилтыг юугаар хэмжих вэ?</em></small>
+    {% include 'gate0_fields.html' with form=gate2form fields=gate2form.target_fields form_id='gate2-brief-form' hide_form_messages=True %}
   </fieldset>
 </section>
 <section class="panel padded">

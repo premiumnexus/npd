@@ -68,6 +68,11 @@ def derived_values(food,typed_cogs,launch_date,vendor_invoice_price=None):
 
 
 class Gate2Form(forms.Form):
+    target_keys=('day45_units_store_day','day45_writeoff_percent','day45_margin_percent','day45_change_reason')
+    marketing_keys=('marketing_has_promotion','marketing_promotion','marketing_budget','marketing_start_date','marketing_end_date','marketing_channels')
+    promotion_required=('marketing_promotion','marketing_budget','marketing_start_date','marketing_end_date')
+    readiness_keys=('launch_date','original_launch_date','launch_delay_days','launch_date_change_reason','allocation','first_order_units','barcode_system_registration','sku_code_requested','pos_name_price_checked','supply_readiness','cold_chain_temperature')
+    readiness_required=('launch_date','allocation','first_order_units','barcode_system_registration','sku_code_requested','pos_name_price_checked','supply_readiness','cold_chain_temperature')
     label_keys=('label_allergens','nutrition_info','label_checked')
     safety_keys=('lab_results_approved_shelf_life','chemical_lab_result','approved_shelf_life_hours')
     cost_keys=('recipe_change_reason','final_cogs_invoice_price','cogs_limit','cogs_gap_percent','cogs_status','vendor_invoice_price','front_margin_percent','margin_gap_points','implied_vendor_margin_percent','invoice_price_status','overall_cost_status')
@@ -85,7 +90,16 @@ class Gate2Form(forms.Form):
     def label_fields(self): return [self[key] for key in self.label_keys]
 
     @property
-    def remaining_fields(self): return [field for field in self if field.name not in self.mass_trial_keys+self.cost_keys+self.safety_keys+self.label_keys]
+    def readiness_fields(self): return [self[key] for key in self.readiness_keys]
+
+    @property
+    def marketing_fields(self): return [self[key] for key in self.marketing_keys]
+
+    @property
+    def target_fields(self): return [self[key] for key in self.target_keys]
+
+    @property
+    def remaining_fields(self): return [field for field in self if field.name not in self.mass_trial_keys+self.cost_keys+self.safety_keys+self.label_keys+self.readiness_keys+self.marketing_keys+self.target_keys]
     # Section 1 · Масс туршилт. Drafts may be partial; submission and approval require all of these.
     mass_trial_keys=('mass_trial_result','trial_date','trial_yield_percent','trial_taste_score',
         'quality_tolerance_baseline','quality_weight_min','quality_weight_max','unit_weight_mean',
@@ -159,40 +173,60 @@ class Gate2Form(forms.Form):
         add('label_allergens','Орцын жагсаалтад мэдэгдсэн харшил үүсгэгчид (MNS 6648:2016)','4.1',text())
         add('nutrition_info','Шим тэжээлийн мэдээлэл (100 г тутамд)','4.2',RowsField(NutritionRow,required=False,minimum=1 if submission else 0,complete=submission))
         add('label_checked','Шошгыг шалгасан эсэх','4.3',enum(yesno))
-        add('barcode_system_registration','Баркод','2.6',forms.CharField())
-        add('sku_code_requested','SKU код хүссэн эсэх','2.6',enum(yesno))
-        add('pos_name_price_checked','POS нэр, үнийг шалгасан эсэх','2.6',enum(yesno))
-        add('allocation','Дэлгүүрийн тоо','2.7',integer())
-        add('first_order_units','Эхний захиалга (ширхэг)','2.7',integer())
-        add('supply_readiness','Эхний 2 долоо хоногийн түүхий эд бэлэн эсэх','2.8',enum(yesno))
-        add('delivery_slot','Хүргэлтийн цагийн хуваарь','2.8',text())
-        add('cold_chain_temperature','Хүйтэн хэлхээний температур (°C)','2.8',forms.DecimalField(max_digits=6,decimal_places=2))
-        add('marketing_plan','Маркетингийн сувгууд','2.9',text())
-        add('marketing_promotion','Урамшуулал','2.9',text())
-        add('marketing_start_date','Маркетинг эхлэх огноо','2.9',datefield())
-        add('marketing_end_date','Маркетинг дуусах огноо','2.9',datefield())
-        day45_choices=[('same','Gate 0-ийн зорилт хэвээр'),('changed','Өөрчилсөн')]
-        add('day45_target_confirmed','Gate 0-ийн зорилт хэвээр / Өөрчилсөн','2.11',forms.ChoiceField(choices=day45_choices))
-        add('day45_units_store_day','45 хоногийн зорилт (ширхэг / дэлгүүр / өдөр)','2.11',number())
-        add('day45_writeoff_percent','45 хоногийн акт (өртгийн %)','2.11',number(0,100))
-        add('day45_margin_percent','45 хоногийн акт-ын дараах ашиг (%)','2.11',forms.DecimalField(max_digits=14,decimal_places=2))
-        add('day45_change_reason','45 хоногийн зорилт өөрчилсөн шалтгаан','2.11',text())
-        self.fields['day45_change_reason'].help_text+=' Өөрчилсөн бол тайлбар оруулж болно. Талбар заавал биш.'
-        add('original_launch_date','Gate 0 (0.22) төлөвлөсөн огноо','2.12',forms.DateField(disabled=True,widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date','class':'costing-result'})))
-        self.fields['original_launch_date'].help_text+=' Gate 0 (0.22)-оос автоматаар бөглөнө.'
-        add('launch_date','Нэвтрүүлэх огноо','2.12',datefield())
-        add('launch_delay_days','Төлөвлөгөөнөөс зөрсөн хоног (+ хойшилсон / − урагшилсан)','2.12',forms.IntegerField(disabled=True,widget=forms.NumberInput(attrs={'class':'costing-result'})))
-        self.fields['launch_delay_days'].help_text+=' Нэвтрүүлэх огноо − Gate 0 (0.22) төлөвлөсөн огноо.'
-        add('launch_date_change_reason','Нэвтрүүлэх огноо өөрчилсөн шалтгаан','2.12',text())
+        add('barcode_system_registration','Баркод','5.7',forms.CharField())
+        add('sku_code_requested','SKU код хүссэн эсэх','5.8',enum(yesno))
+        add('pos_name_price_checked','POS нэр, үнийг шалгасан эсэх','5.9',enum(yesno))
+        add('allocation','Дэлгүүрийн тоо','5.5',integer())
+        add('first_order_units','Эхний захиалга (ширхэг)','5.6',integer())
+        add('supply_readiness','Эхний 2 долоо хоногийн түүхий эд, савлагаа бэлэн эсэх','5.10',enum(yesno))
+        temperature_choices=[('','---------'),('chilled','0–5 °C'),('frozen','−18 °C'),('ambient','өрөөний')]
+        add('cold_chain_temperature','Хадгалах температур','5.11',forms.ChoiceField(choices=temperature_choices))
+        promotion_choices=[('','---------'),('discount','хөнгөлөлт'),('bogo','1+1'),('bundle','багц'),('tasting','амталгаа'),('other','бусад')]
+        channel_choices=[('pop','дэлгүүрийн POP'),('social','сошиал'),('cu_app','CU апп'),('other','бусад')]
+        add('marketing_has_promotion','Урамшуулал байгаа эсэх (тийм / үгүй)','6.1',enum(yesno))
+        add('marketing_promotion','Урамшууллын төрөл','6.2',forms.ChoiceField(choices=promotion_choices))
+        add('marketing_budget','Урамшууллын төсөв (₮)','6.3',number())
+        add('marketing_start_date','Маркетинг эхлэх огноо','6.4',datefield())
+        add('marketing_end_date','Маркетинг дуусах огноо','6.5',datefield())
+        add('marketing_channels','Маркетингийн сувгууд','6.6',forms.MultipleChoiceField(choices=channel_choices,widget=forms.CheckboxSelectMultiple))
+        add('day45_units_store_day','Зорилтот APSD','7.1',number())
+        add('day45_writeoff_percent','45 хоногийн акт %','7.2',number(0,100))
+        add('day45_margin_percent','45 хоногийн актын дараах ашиг %','7.3',forms.DecimalField(max_digits=14,decimal_places=2))
+        add('day45_change_reason','Зорилт өөрчилсөн шалтгаан','7.4',text())
+        add('original_launch_date','Gate 0 төлөвлөсөн огноо','5.2',forms.DateField(disabled=True,widget=forms.DateInput(format='%Y-%m-%d',attrs={'type':'date','class':'costing-result'})))
+        self.fields['original_launch_date'].help_text+=' Gate 0 (1.6)-аас автоматаар бөглөнө.'
+        add('launch_date','Нэвтрүүлэх огноо','5.1',datefield())
+        add('launch_delay_days','Төлөвлөгөөнөөс зөрсөн хоног (+ хойшилсон / − урагшилсан)','5.3',forms.IntegerField(disabled=True,widget=forms.NumberInput(attrs={'class':'costing-result'})))
+        self.fields['launch_delay_days'].help_text+=' Нэвтрүүлэх огноо − Gate 0 төлөвлөсөн огноо.'
+        add('launch_date_change_reason','Огноо өөрчилсөн шалтгаан','5.4',text())
         self.fields['launch_date_change_reason'].help_text+=' Огноо зөрвөл тайлбар оруулж болно. Талбар заавал биш.'
         from .dropdown_options import apply_options
         apply_options(self, 'gate2')
+        for key,choices in [('marketing_has_promotion',[('','---------')]+yesno),('marketing_promotion',promotion_choices)]:
+            self.fields[key].widget=forms.Select()
+            self.fields[key].choices=choices
+        self.fields['marketing_has_promotion'].gate_required=True
+        self.fields['marketing_has_promotion'].required=submission
+        promotion=(self.data if self.is_bound else self.initial).get('marketing_has_promotion')=='yes'
+        for key in self.promotion_required:
+            field=self.fields[key]
+            field.gate_marketing_conditional=True
+            field.gate_required=promotion
+            field.required=submission and promotion
+            field.help_text+=' 6.1 Тийм бол заавал бөглөнө.'
+        self.legacy_marketing_channels=self.initial.get('marketing_plan') or ''
+        # Storage temperature has exactly the three supported conditions.
+        self.fields['cold_chain_temperature'].widget=forms.Select()
+        self.fields['cold_chain_temperature'].choices=temperature_choices
+        for key in self.readiness_required:
+            self.fields[key].gate_required=True
+            self.fields[key].required=submission
         for key in self.label_keys:
             self.fields[key].gate_required=True
             self.fields[key].required=submission
-        # These two modes control copying/editing and do not accept custom options.
-        self.fields['day45_target_confirmed'].widget=forms.Select()
-        self.fields['day45_target_confirmed'].choices=day45_choices
+        for key in self.target_keys[:2]:
+            self.fields[key].gate_required=True
+            self.fields[key].required=submission
         for key in self.mass_trial_keys:
             self.fields[key].gate_required=True
             self.fields[key].required=submission
@@ -211,28 +245,9 @@ class Gate2Form(forms.Form):
                     self.legacy_values.append((field.label,value))
                     self.initial[key]=''
         targets=gate0_targets(food)
-        target_keys=['day45_units_store_day','day45_writeoff_percent','day45_margin_percent']
-        mode=(self.data.get('day45_target_confirmed') if self.is_bound else None) or self.initial.get('day45_target_confirmed')
-        if mode not in ('same','changed') and (not self.is_bound or not mode):
-            def differs(key):
-                value=self.initial.get(key)
-                if value in (None,''): return False
-                try: return Decimal(str(value)) != Decimal(str(targets[key]))
-                except (InvalidOperation,ValueError,TypeError): return True
-            mode='changed' if self.initial.get('day45_change_reason') or any(differs(key) for key in target_keys) else 'same'
-        self.day45_mode=mode
-        self.initial['day45_target_confirmed']=mode
-        for key in target_keys:
-            self.fields[key].widget.attrs['data-gate0-value']=str(targets[key] if targets[key] is not None else '')
-            if mode=='same':
+        for key in self.target_keys[:3]:
+            if not self.is_bound and self.initial.get(key) in (None,''):
                 self.initial[key]=targets[key]
-                self.fields[key].disabled=True
-            elif not self.is_bound and key not in self.initial:
-                self.initial[key]=targets[key]
-        self.fields['day45_change_reason'].frontend_hidden=mode!='changed'
-        if mode!='changed':
-            self.fields['day45_change_reason'].disabled=True
-            self.initial['day45_change_reason']=''
         raw=self.data if self.is_bound else self.initial
         self.initial.update(derived_values(food,None,raw.get('launch_date'),raw.get('vendor_invoice_price')))
         cogs=self.initial['final_cogs_invoice_price']
@@ -250,9 +265,6 @@ class Gate2Form(forms.Form):
             for slot,message in [('G2-F5','1.11 Технологи шилжүүлэх баримт, гарын үсэгтэй файл заавал хавсаргана уу.'),('G2-F2','2.13 Нийлүүлэгчийн эцсийн үнийн саналын файл заавал хавсаргана уу.'),('G2-F3','3.4 Лабораторийн тайлангийн файл заавал хавсаргана уу.'),('G2-F6','3.6 HACCP / CCP төлөвлөгөөний файл заавал хавсаргана уу.'),('G2-F7','4.4 Шошгоны эцсийн загварын файл заавал хавсаргана уу.'),('G2-F8','4.5 Савлагааны эцсийн техникийн тодорхойлолтын файл заавал хавсаргана уу.')]:
                 if not self.food or not self.food.gate2_files.filter(slot_code=slot).exclude(file='').exists():
                     self.add_error(None,message)
-        if 'day45_target_confirmed' not in self.errors:
-            data['day45_target_confirmed']=self.day45_mode
-            if self.day45_mode!='changed': data['day45_change_reason']=''
         low,high=data.get('quality_weight_min'),data.get('quality_weight_max')
         target=data.get('quality_tolerance_baseline')
         if low is not None and high is not None and low>high:

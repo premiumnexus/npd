@@ -1,16 +1,14 @@
 {% load static %}
 <script src="{% static 'launch-checkpoints.js' %}?v=day14-check-2" defer></script>
 <section class="panel padded">
-  <h2>Launch GO · Хугацаат хяналт</h2>
-  {% if launch_schedule.started_at %}<p>Нэвтрүүлсэн: {{ launch_schedule.started_at|date:'Y-m-d H:i' }} · Gate 3 нээгдэх: {{ launch_schedule.day45_at|date:'Y-m-d H:i' }}</p>
-  {% else %}<div class="notice">Launch GO эхэлсэн огноо бүртгэгдээгүй байна. Удирдлагын самбарт бодит огноог бүртгэнэ үү.</div>{% endif %}
+  <h2>Launch GO · Нэвтрүүлэлтийн хяналт</h2>
+  {% if food.launched_at %}<p>Нэвтрүүлсэн: {{ food.launched_at|date:'Y-m-d H:i' }}</p>{% endif %}
 </section>
 {% for checkpoint in checkpoint_cards %}
 <section class="panel padded">
   <h2>Day {{ checkpoint.day }} – {{ checkpoint.day }} {% if checkpoint.day == 7 %}дахь{% else %}дэх{% endif %} өдрийн шалгалт</h2>
   <p>Хариуцах баг: Хүнсний технологич, FF төлөвлөлт{% if checkpoint.day == 14 %}, QA{% endif %}.</p>
-  {% if checkpoint.due %}<p>Шалгалт бүртгэх эрх нээгдэх: <strong>{{ checkpoint.due|date:'Y-m-d H:i' }}</strong></p>{% endif %}
-  {% if not checkpoint.unlocked %}<div class="notice">Хугацаа болоогүй тул зөвхөн харах боломжтой.</div>{% elif not checkpoint.editable %}<p>Зөвхөн харах боломжтой.</p>{% endif %}
+  {% if not checkpoint.editable %}<p>Зөвхөн харах боломжтой.</p>{% endif %}
   <details class="checkpoint-baseline"><summary>Gate 2 (2.10) · Харьцуулах чанарын шалгуур</summary>
     <dl><dt>Зорилтот жин</dt><dd>{{ checkpoint.baseline.quality_tolerance_baseline|default:'—' }} г</dd><dt>Жингийн зөвшөөрөх хүрээ</dt><dd>{{ checkpoint.baseline.quality_weight_min|default:'—' }} – {{ checkpoint.baseline.quality_weight_max|default:'—' }} г</dd><dt>Чанарын стандарт</dt><dd>{% for item in checkpoint.quality_standards %}<a class="attachment-link" href="{% url 'download_attachment' item.pk %}">{{ item.attachment_name }}</a>{% empty %}—{% endfor %}</dd></dl>
   </details>
@@ -27,7 +25,7 @@
         {% else %}{{ field }}{% endif %}
         {{ field.errors }}
         {% if field.field.responsible_role %}<small>{{ field.field.responsible_role }}</small>{% endif %}
-        {% if field.name == 'target_apsd' %}<small>Gate 2 (2.11)-ээс автоматаар бөглөнө.</small>{% endif %}
+        {% if field.name == 'target_apsd' %}<small>Gate 2 (7.1)-ээс автоматаар бөглөнө.</small>{% endif %}
       </div>
       {% endif %}
     {% endfor %}

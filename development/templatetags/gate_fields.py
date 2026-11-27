@@ -39,6 +39,8 @@ def gate_widget(bound_field, form_id=None):
     widget = copy.deepcopy(bound_field.field.widget)
     if form_id:
         widget.attrs['form'] = form_id
+    if getattr(bound_field.field,'gate_marketing_conditional',False):
+        widget.attrs.update({'data-required-promotion':True,'aria-required':'true' if bound_field.field.gate_required else 'false'})
     if getattr(bound_field.field,'gate_conditional_required',False):
         widget.attrs.update({'data-required-consumer':True,'aria-required':'true' if bound_field.field.gate_required else 'false'})
     if getattr(bound_field.field,'gate_production_conditional',False):

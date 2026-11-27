@@ -125,6 +125,11 @@ class Gate2MassTrialSectionTests(TestCase):
 
 
 COMPLETE = {
+    'day45_units_store_day':'10','day45_writeoff_percent':'5',
+    'marketing_has_promotion':'no',
+    'launch_date':'2027-05-15','allocation':'100','first_order_units':'1000',
+    'barcode_system_registration':'00123456789','sku_code_requested':'yes',
+    'pos_name_price_checked':'yes','supply_readiness':'yes','cold_chain_temperature':'chilled',
     'label_allergens':'Milk','label_checked':'yes',
     'nutrition_info':[{'energy_kcal':'200','protein_g':'5','fat_g':'10','carbohydrates_g':'20','salt_g':'0.5'}],
     'lab_results_approved_shelf_life':'pass','approved_shelf_life_hours':'48',

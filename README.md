@@ -123,6 +123,12 @@ Gate 2's Хүнсний аюулгүй байдал ба хадгалах хуг
 
 Gate 2's Шошго ба савлагаа section contains required declared allergens (4.1), repeatable nutrition rows per 100 g (4.2: kcal, protein, fat, carbohydrate and salt), label check (4.3), final label design file (4.4) and final packaging specification file (4.5). At least one complete nutrition row and both uploads are required before submission or approval. Partial drafts are allowed; file histories appear only in this section.
 
+Gate 2's Нэвтрүүлэлтийн бэлэн байдал section groups launch date (5.1), the read-only Gate 0 planned date (5.2), calculated delay in days (5.3), optional date-change reason (5.4), store count (5.5), first-order units (5.6), barcode (5.7), SKU-code request check (5.8), POS name/price check (5.9), first two weeks' ingredient/packaging readiness (5.10) and storage condition (5.11: 0–5 °C, −18 °C or room temperature). Fields 5.1 and 5.5–5.11 are required for submission and approval, with partial drafts allowed. Delivery schedule and the G2-F10 allocation-plan upload are removed. Historical files remain downloadable; historical temperatures from 0 to 5 °C and −18 °C map to their matching storage conditions.
+
+Gate 2's Нэвтрүүлэлтийн маркетинг section contains the required promotion yes/no check (6.1), promotion type (6.2: discount, 1+1, bundle, tasting or other), budget in tugrik (6.3), start/end dates (6.4–6.5), optional channel checkboxes (6.6: store POP, social, CU app, other) and optional marketing-plan file history (6.7). Fields 6.2–6.5 become required when 6.1 is Yes; their stars update as the selection changes. Submission and approval enforce these requirements, while drafts may be partial. Channel selections persist as ordered child records. Recognized historical channel/type labels are migrated, and existing channel notes are retained.
+
+Gate 2's 45 хоногийн зорилт section contains required target APSD (7.1), required 45-day write-off percentage (7.2), optional margin after write-offs (7.3) and optional target-change reason (7.4). Targets initially use Gate 0 values and remain editable; saved targets take precedence. Both submission and approval require 7.1 and 7.2, while partial drafts are allowed. The old same/changed selector and its field-locking behavior are removed.
+
 The shared recipe editor is in Gate 1 section 1.4 and Gate 2 section 2.1. It stores ingredient quantities per finished product, ingredient yield, captured price per kg and per-product packaging cost:
 
 ```text
@@ -143,21 +149,17 @@ Both Gate 1 and Gate 2 show COGS status against the Gate 0 limit:
 
 Gate 1's `amber_band` and `send_to_director` fields remain stored and calculated, but are hidden in the frontend.
 
-Gate 2 opens with the Масс туршилт section: mass trial batch (1.1), trial date (1.2), trial yield (1.3), taste score (1.4), weight target (1.5), lower and upper weight limits (1.6–1.7), mass trial mean unit weight (1.8), technology transfer document version (1.9) and document date (1.10). All ten are required, marked with a red asterisk: drafts may be saved partially, but submission and final approval require every value. The weight target must lie within the limits. Section 2.10 keeps unit weight variation and the quality-standard upload. Section 2.11 defaults to the Gate 0 section 0.21 targets and allows a changed target; its reason box appears for the changed option and remains optional. Section 2.12 copies the planned date from Gate 0 section 0.22 and calculates actual launch date minus planned date: positive means delayed, negative means earlier. ISF Manual is available only for ISF developments. Invoice-based margins are calculated from the available pricing inputs.
+Gate 2 production fields 1.1–1.10 are required, marked with a red asterisk: drafts may be saved partially, but submission and final approval require every value. The weight target must lie within the limits. Section 5 copies the planned date from Gate 0 section 1.6 and calculates actual launch date minus planned date: positive means delayed, negative means earlier. ISF Manual is available only for ISF developments. Invoice-based margins are calculated from the available pricing inputs.
 
 ## Launch GO and Gate 3
 
-Launch timing starts at `development_food.launched_at`, which is retained across returns and re-entry. Day 7 unlocks after seven elapsed days and Day 14 after fourteen. Food Science edits check date and sample result; FF Planning edits actual APSD; QA edits the Day 14 complaint count. Each role also requires Launch edit permission.
+Launch GO's Day 7 and Day 14 checklists are editable immediately, even when the launch timestamp is missing or in the future. Food Science edits check date and sample result; FF Planning edits actual APSD; QA edits the Day 14 complaint count. Each role also requires Launch edit permission. Launch timestamps remain historical information and are retained across returns and re-entry.
 
-Target APSD is read-only from Gate 2 section 2.11. Achievement is actual APSD / target APSD * 100: Green at 100% or above, Amber from 80% to below 100%, and Red below 80%. Missing or zero targets produce no percentage. An action, owner and deadline are required only for conditional or outside-limit sample results. Each day has one report/photo slot with upload history. Gate 2 quality standards remain available as reference documents.
+Target APSD is read-only from Gate 2 section 7.1. Achievement is actual APSD / target APSD * 100: Green at 100% or above, Amber from 80% to below 100%, and Red below 80%. Missing or zero targets produce no percentage. An action, owner and deadline are required only for conditional or outside-limit sample results. Each day has one report/photo slot with upload history. Gate 2 quality standards remain available as reference documents.
 
-Gate 3 unlocks at launch +45 elapsed days. Dashboard/detail access automatically opens due Gate 3 reviews. For external scheduling, use:
+FF Planning can move Launch GO to Gate 3 immediately through the usual submission button. Gate 3 has no 45-day time lock: editing, files and review actions follow the existing role permissions and review state. Visiting the dashboard or detail page never advances the stage automatically. The retired `open_due_gate3` command is a harmless no-op for compatibility with existing scheduled calls.
 
-```powershell
-python manage.py open_due_gate3
-```
-
-No background scheduler is installed. Gate 3 compares actual sales, write-offs and margin with Gate 0 targets, reads Day 7/14 sample results, and captures complaints, feedback, root causes and lessons. Handover checks recognize Gate 2 values and relevant Gate 2 file records. The Recipes and Lessons pages expose the corresponding saved information.
+Gate 3 compares actual sales, write-offs and margin with Gate 0 targets, reads Day 7/14 sample results, and captures complaints, feedback, root causes and lessons. Handover checks recognize Gate 2 values and relevant Gate 2 file records. The Recipes and Lessons pages expose the corresponding saved information.
 
 Structured gate transitions retain action, actor, timestamp and linked audit events. Ordinary saves and uploads do not reset gate timing. Historical timestamps remain unknown when there is no recorded source.
 

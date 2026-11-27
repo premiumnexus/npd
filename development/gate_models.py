@@ -172,8 +172,10 @@ class Gate2(GateRecord):
     first_order_units = models.BigIntegerField('Эхний захиалга (ширхэг)', null=True, blank=True, validators=[MinValueValidator(0)])
     supply_readiness = models.CharField('Эхний 2 долоо хоногийн түүхий эд бэлэн эсэх', null=True, blank=True, max_length=200)
     delivery_slot = models.TextField('Хүргэлтийн цагийн хуваарь', null=True, blank=True)
-    cold_chain_temperature = models.DecimalField('Хүйтэн хэлхээний температур (°C)', null=True, blank=True, max_digits=6, decimal_places=2)
+    cold_chain_temperature = models.CharField('Хадгалах температур', null=True, blank=True, max_length=200)
     marketing_plan = models.TextField('Маркетингийн сувгууд', null=True, blank=True)
+    marketing_has_promotion = models.CharField('Урамшуулал байгаа эсэх', null=True, blank=True, max_length=200)
+    marketing_budget = models.DecimalField('Урамшууллын төсөв (₮)', null=True, blank=True, max_digits=14, decimal_places=2, validators=[MinValueValidator(0)])
     marketing_promotion = models.TextField('Урамшуулал', null=True, blank=True)
     marketing_start_date = models.DateField('Маркетинг эхлэх огноо', null=True, blank=True)
     marketing_end_date = models.DateField('Маркетинг дуусах огноо', null=True, blank=True)
@@ -431,6 +433,16 @@ class Gate1Material(OrderedGateItem):
         constraints = [models.UniqueConstraint(
             fields=['gate', 'position'], name='gate1_material_position',
         )]
+
+
+class Gate2MarketingChannel(OrderedGateItem):
+    gate=models.ForeignKey('Gate2',on_delete=models.CASCADE,db_column='development_id',related_name='marketing_channels')
+    value=models.CharField(max_length=200)
+
+    class Meta:
+        db_table='development_gate2_marketing_channel'
+        ordering=['position','pk']
+        constraints=[models.UniqueConstraint(fields=['gate','position'],name='gate2_marketing_channel_position')]
 
 
 class Gate2Nutrition(OrderedGateItem):

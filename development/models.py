@@ -356,7 +356,7 @@ class GateTransition(models.Model):
 
 
 from .gate_models import (
-    Gate0, Gate1, Gate2, Gate3, GateDataArchive, Gate2Nutrition,
+    Gate0, Gate1, Gate2, Gate3, GateDataArchive, Gate2Nutrition, Gate2MarketingChannel,
     Gate0ImprovementReason, Gate0Daypart, Gate0Allergen, Gate0HighRiskInput,
     Gate3LessonTag, Gate0Evidence, Gate0Competitor, Gate0AnalogSKU, Gate0Cannibalisation, Gate1Material, Gate1Trial,
 )

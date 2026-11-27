@@ -60,7 +60,7 @@ class DevelopmentTests(TestCase):
         from datetime import timedelta
         self.food.stage='launch';self.food.launched_at=timezone.now()-timedelta(days=8);self.food.save()
         rows=role_progress(self.food)
-        self.assertFalse(rows[0]['locked']);self.assertTrue(rows[1]['locked'])
+        self.assertTrue(all(row['state']=='current' for row in rows))
         self.assertIn('Food Science',rows[0]['roles'])
         self.assertIn('QA',rows[1]['roles'])
         self.food.launched_at=timezone.now()-timedelta(days=15)
@@ -208,26 +208,26 @@ class DevelopmentTests(TestCase):
         self.assertEqual(partial.cleaned_data['cu_total_margin'],Decimal('31.4'))
         self.assertIsNone(partial.cleaned_data['price_excl_vat'])
 
-    def test_launch_file_uploads_keep_history_downloads_and_time_locks(self):
+    def test_launch_file_uploads_keep_history_downloads_without_waiting(self):
         from datetime import timedelta
         from django.utils import timezone
         from .models import Activity
-        self.food.stage='launch';self.food.launched_at=timezone.now()-timedelta(days=8);self.food.save()
+        self.food.stage='launch';self.food.launched_at=timezone.now();self.food.save()
         self.user.groups.add(Group.objects.get(name='Food Science'))
         url='/food/%s/'%self.food.pk
         with tempfile.TemporaryDirectory() as media, self.settings(MEDIA_ROOT=media):
             def upload(day=7,content=b'first report'):
                 return self.client.post(url,{'action':'checkpoint_save','day':day,
                     'report':SimpleUploadedFile('quality.pdf',content,content_type='application/pdf')})
-            self.assertEqual(upload(14).status_code,403)
-            self.assertFalse(Activity.objects.filter(food=self.food,attachment_stage='launch').exists())
+            self.assertEqual(upload(14).status_code,302)
+            self.assertTrue(Activity.objects.filter(food=self.food,attachment_stage='launch').exists())
             self.assertEqual(upload().status_code,302)
             self.assertEqual(upload(content=b'revised report').status_code,302)
             files=Activity.objects.filter(food=self.food,attachment_slot='L7F8')
             self.assertEqual(files.count(),2)
             response=self.client.get(url)
             self.assertContains(response,'enctype="multipart/form-data"')
-            self.assertContains(response,'type="file"',count=1)
+            self.assertContains(response,'type="file"',count=2)
             self.assertEqual(len(response.context['checkpoint_cards'][0]['upload_fields'][0]['files']),2)
             item=files.first()
             from django.urls import reverse
@@ -252,7 +252,7 @@ class DevelopmentTests(TestCase):
         self.user.groups.add(Group.objects.get(name='Food Science'))
         page=self.client.get(url)
         self.assertContains(page,'Day 7 – 7 дахь өдрийн шалгалт')
-        self.assertContains(page,'type="file"',count=1)
+        self.assertContains(page,'type="file"',count=2)
         self.assertNotContains(page,'name="sample_weight"')
         form=page.context['checkpoint_cards'][0]['form']
         self.assertNotIn('complaints_count',form.fields)
@@ -423,51 +423,42 @@ class DevelopmentTests(TestCase):
             self.assertContains(page,'day14-revised.pdf')
             self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':14,'complaints_count':'1'}).status_code,403)
 
-    def test_day45_after_late_launch_reentry_keeps_chronological_timing(self):
+    def test_launch_reentry_waits_for_manual_gate3_transition(self):
         from datetime import timedelta
         from django.utils import timezone
         from .models import GateTransition
-        from .launch import open_gate3_if_due
         now=timezone.now()
         self.food.stage='launch';self.food.launched_at=now-timedelta(days=60);self.food.save()
         reentry=now-timedelta(days=2)
         GateTransition.objects.create(food=self.food,action='approve',from_stage='gate2',to_stage='launch',to_review='draft',occurred_at=reentry)
-        self.assertTrue(open_gate3_if_due(self.food,now))
-        self.assertEqual(self.food.gate3_opened_at,reentry)
-        self.assertEqual(self.food.gate_transitions.get(action='auto_open').occurred_at,reentry)
+        self.client.get('/food/%s/'%self.food.pk)
+        self.food.refresh_from_db();self.assertEqual(self.food.stage,'launch')
+        self.user.groups.add(Group.objects.get(name='FF Planning'))
+        self.client.post('/food/%s/'%self.food.pk,{'action':'submit'})
+        self.food.refresh_from_db();self.assertEqual(self.food.stage,'gate3')
+        event=self.food.gate_transitions.get(action='submit')
+        self.assertEqual(self.food.gate3_opened_at,event.occurred_at)
+        self.assertGreaterEqual(event.occurred_at,now)
+        self.assertFalse(self.food.gate_transitions.filter(action='auto_open').exists())
 
-    def test_day7_and_day14_unlock_at_exact_elapsed_time(self):
-        from datetime import datetime,timedelta,timezone as dt_timezone
-        start=datetime(2026,11,1,8,30,tzinfo=dt_timezone.utc)
-        self.food.stage='launch';self.food.launched_at=start;self.food.save()
+    def test_day7_and_day14_editable_immediately_without_launch_date(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.food.stage='launch';self.food.launched_at=None;self.food.save()
         self.user.groups.add(Group.objects.get(name='Food Science'))
         url='/food/%s/'%self.food.pk
-        payload={'action':'checkpoint_save','day':'7','checked_date':'2026-11-08','sample_result':'within'}
-        with patch('django.utils.timezone.now',return_value=start+timedelta(days=7)-timedelta(seconds=1)):
-            self.client.force_login(self.user)
-            self.assertEqual(self.client.post(url,payload).status_code,403)
-            self.assertFalse(self.client.get(url).context['checkpoint_cards'][0]['editable'])
-        with patch('django.utils.timezone.now',return_value=start+timedelta(days=7)):
-            self.client.force_login(self.user)
-            self.assertEqual(self.client.post(url,payload).status_code,302)
+        for start in (None,timezone.now(),timezone.now()+timedelta(days=30)):
+            self.food.launched_at=start;self.food.save()
             cards=self.client.get(url).context['checkpoint_cards']
-            self.assertTrue(cards[0]['editable'])
-            self.assertEqual(len(cards),2)
-            self.assertFalse(cards[1]['editable'])
-            self.assertEqual(self.client.post(url,{**payload,'day':'14'}).status_code,403)
-        with patch('django.utils.timezone.now',return_value=start+timedelta(days=14)-timedelta(seconds=1)):
-            self.client.force_login(self.user)
-            self.assertEqual(self.client.post(url,{**payload,'day':'14','complaints_count':'2','complaints_details':'Packaging concerns'}).status_code,403)
-        with patch('django.utils.timezone.now',return_value=start+timedelta(days=14)):
-            self.client.force_login(self.user)
-            self.assertEqual(self.client.post(url,{**payload,'day':'14','checked_date':'2026-11-15'}).status_code,302)
-            self.assertTrue(self.client.get(url).context['checkpoint_cards'][1]['editable'])
-        self.assertEqual(self.food.launch_checkpoints.get(day=7).sample_result,'within')
-        self.assertEqual(self.food.launch_checkpoints.get(day=14).sample_result,'within')
+            self.assertTrue(all(card['editable'] for card in cards))
+            for day in (7,14):
+                payload={'action':'checkpoint_save','day':day,'checked_date':'2026-11-01','sample_result':'within'}
+                self.assertEqual(self.client.post(url,payload).status_code,302)
+                self.assertEqual(self.food.launch_checkpoints.get(day=day).sample_result,'within')
         from .launch import CheckpointForm
         with self.assertRaises(ValueError): CheckpointForm(day=21)
 
-    def test_launch_checkpoint_role_ownership_and_superuser_time_lock(self):
+    def test_launch_checkpoint_role_ownership_and_superuser_access(self):
         from datetime import timedelta
         from django.utils import timezone
         self.food.stage='launch';self.food.launched_at=timezone.now()-timedelta(days=15);self.food.save()
@@ -479,47 +470,40 @@ class DevelopmentTests(TestCase):
                 self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':day,'sample_result':'within'}).status_code,expected,(role,day))
         self.food.launched_at=timezone.now();self.food.save()
         self.user.is_superuser=True;self.user.save()
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':'7'}).status_code,403)
+        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':'7'}).status_code,302)
         self.assertEqual(self.client.post(url,{'action':'submit'}).status_code,302)
-        self.food.refresh_from_db();self.assertEqual(self.food.stage,'launch')
+        self.food.refresh_from_db();self.assertEqual(self.food.stage,'gate3')
 
-    def test_gate3_opens_automatically_at_day45_without_duplicate_events(self):
-        from datetime import datetime,timedelta,timezone as dt_timezone
-        start=datetime(2026,11,1,8,30,tzinfo=dt_timezone.utc)
-        self.food.stage='launch';self.food.launched_at=start;self.food.save()
-        self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
-        url='/food/%s/'%self.food.pk
-        with patch('django.utils.timezone.now',return_value=start+timedelta(days=45)-timedelta(seconds=1)):
-            self.client.force_login(self.user)
-            response=self.client.get(url+'?gate=gate3')
-            self.assertFalse(response.context['editable'])
-            self.assertEqual(self.client.post(url+'?gate=gate3',{'action':'gate3_save','sales_vs_target':'10'}).status_code,403)
-        with patch('django.utils.timezone.now',return_value=start+timedelta(days=45)):
-            self.client.force_login(self.user)
-            response=self.client.get(url)
-            self.food.refresh_from_db()
-            self.assertEqual(self.food.stage,'gate3')
-            self.assertTrue(response.context['editable'])
-            self.assertEqual(self.food.gate3_opened_at,start+timedelta(days=45))
-            self.assertEqual(self.client.post(url,{'action':'gate3_save','sales_vs_target':'10'}).status_code,302)
-            self.client.get(url)
-        event=self.food.gate_transitions.get(action='auto_open')
-        self.assertIsNone(event.actor)
-        self.assertEqual(event.occurred_at,start+timedelta(days=45))
-
-    def test_early_gate3_even_if_manually_selected_is_locked_and_unknown_launch_not_invented(self):
+    def test_gate3_never_auto_opens_on_views_or_retired_command(self):
         from datetime import timedelta
         from django.utils import timezone
-        self.user.is_superuser=True;self.user.save()
-        self.food.stage='gate3';self.food.launched_at=timezone.now()-timedelta(days=10);self.food.save()
+        from django.core.management import call_command
+        from io import StringIO
+        self.food.stage='launch';self.food.launched_at=timezone.now()-timedelta(days=90);self.food.save()
+        self.user.groups.add(Group.objects.get(name='Category Manager (MD)'))
         url='/food/%s/'%self.food.pk
+        self.client.get('/')
+        self.client.get(url)
+        self.assertEqual(self.client.post(url+'?gate=gate3',{'action':'gate3_save','sales_vs_target':'10'}).status_code,403)
+        call_command('open_due_gate3',stdout=StringIO())
+        self.food.refresh_from_db();self.assertEqual(self.food.stage,'launch')
+        self.assertIsNone(self.food.gate3_opened_at)
+        self.assertFalse(self.food.gate_transitions.filter(action='auto_open').exists())
+
+    def test_gate3_editable_immediately_without_launch_date(self):
+        from django.utils import timezone
+        from .gate3 import initial_brief
+        self.user.is_superuser=True;self.user.save()
+        url='/food/%s/'%self.food.pk
+        for start in (None,timezone.now()):
+            self.food.stage='gate3';self.food.launched_at=start;self.food.save()
+            page=self.client.get(url)
+            self.assertTrue(page.context['editable'])
+            self.assertEqual(self.client.post(url,{'action':'gate3_save','sales_vs_target':'10'}).status_code,302)
+            self.assertEqual(Decimal(initial_brief(self.food)['sales_vs_target']),10)
+        self.user.is_superuser=False;self.user.save()
         self.assertFalse(self.client.get(url).context['editable'])
-        self.assertEqual(self.client.post(url,{'action':'gate3_save','sales_vs_target':'10'}).status_code,403)
-        self.food.stage='launch';self.food.launched_at=None;self.food.save()
-        response=self.client.get(url)
-        self.assertFalse(response.context['launch_schedule']['day7_open'])
-        self.assertIsNone(response.context['launch_schedule']['day7_at'])
-        self.assertEqual(self.client.post(url,{'action':'checkpoint_save','day':7}).status_code,403)
+        self.assertEqual(self.client.post(url,{'action':'gate3_save','sales_vs_target':'20'}).status_code,403)
 
     def test_launch_anchor_is_not_reset_by_returns_or_reentry(self):
         from datetime import timedelta
@@ -660,7 +644,7 @@ class DevelopmentTests(TestCase):
             form=Gate2Form({key:value},food=self.food)
             self.assertFalse(form.is_valid(),(key,value))
             self.assertIn(key,form.errors)
-        form=Gate2Form({'cold_chain_temperature':'-18','barcode_system_registration':'00123456789','label_checked':'yes'},food=self.food)
+        form=Gate2Form({'cold_chain_temperature':'frozen','barcode_system_registration':'00123456789','label_checked':'yes'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
         self.assertEqual(form.cleaned_data['barcode_system_registration'],'00123456789')
 
@@ -708,23 +692,23 @@ class DevelopmentTests(TestCase):
         self.assertEqual(saved['original_launch_date'],'')
         self.assertEqual(saved['launch_delay_days'],'')
 
-    def test_gate2_same_day45_targets_copied_from_gate0_or_changed_optionally(self):
+    def test_gate2_day45_targets_default_from_gate0_and_remain_editable(self):
         from .gate0 import save_brief
         from .gate2 import Gate2Form
         save_brief(self.food,{'day45_success_criteria':'15','day45_writeoff_percent':'3','day45_margin_percent':'30'})
         initial=Gate2Form(food=self.food)
-        self.assertEqual(initial.initial['day45_target_confirmed'],'same')
+        self.assertNotIn('day45_target_confirmed',initial.fields)
         self.assertEqual([initial.initial[key] for key in ['day45_units_store_day','day45_writeoff_percent','day45_margin_percent']],['15','3','30'])
-        self.assertTrue(initial.fields['day45_change_reason'].frontend_hidden)
+        self.assertFalse(initial.fields['day45_units_store_day'].disabled)
         form=Gate2Form({'day45_target_confirmed':'same','day45_units_store_day':'999'},food=self.food)
         self.assertTrue(form.is_valid(),form.errors)
-        self.assertEqual(form.cleaned_data['day45_units_store_day'],15)
-        self.assertEqual(form.cleaned_data['day45_writeoff_percent'],3)
+        self.assertEqual(form.cleaned_data['day45_units_store_day'],999)
+        self.assertIsNone(form.cleaned_data['day45_writeoff_percent'])
         form=Gate2Form({'day45_target_confirmed':'changed','day45_units_store_day':'20'},food=self.food)
         self.assertTrue(form.is_valid())  # Reasons remain optional per user request.
         self.assertEqual(form.cleaned_data['day45_units_store_day'],20)
         legacy=Gate2Form(initial={'day45_units_store_day':'20','day45_writeoff_percent':'3','day45_margin_percent':'30'},food=self.food)
-        self.assertEqual(legacy.initial['day45_target_confirmed'],'changed')
+        self.assertNotIn('day45_target_confirmed',legacy.fields)
         self.assertEqual(legacy.initial['day45_units_store_day'],'20')
 
     def test_gate2_day45_changed_targets_and_reason_survive_save_and_return_to_gate0(self):
@@ -735,28 +719,25 @@ class DevelopmentTests(TestCase):
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         url='/food/%s/' % self.food.pk
         page=self.client.get(url)
-        self.assertContains(page,'Gate 0-ийн зорилт хэвээр / Өөрчилсөн')
-        self.assertNotContains(page,'45 хоногийн зорилтын сонголт')
-        mode=page.context['gate2form'].fields['day45_target_confirmed']
-        self.assertEqual(list(mode.choices),[('same','Gate 0-ийн зорилт хэвээр'),('changed','Өөрчилсөн')])
-        changed={'action':'gate2_save','day45_target_confirmed':'changed','day45_units_store_day':'20','day45_writeoff_percent':'4','day45_margin_percent':'28','day45_change_reason':'Updated sales plan'}
+        self.assertNotContains(page,'Gate 0-ийн зорилт хэвээр / Өөрчилсөн')
+        self.assertNotIn('day45_target_confirmed',page.context['gate2form'].fields)
+        changed={'action':'gate2_save','day45_units_store_day':'20','day45_writeoff_percent':'4','day45_margin_percent':'28','day45_change_reason':'Updated sales plan'}
         self.assertEqual(self.client.post(url,changed).status_code,302)
         saved=initial_brief(self.food)
         self.assertEqual(saved['day45_change_reason'],'Updated sales plan')
         page=self.client.get(url)
         form=page.context['gate2form']
         self.assertEqual(form.initial['day45_units_store_day'],'20')
-        self.assertFalse(form.fields['day45_change_reason'].frontend_hidden)
+        self.assertFalse(form.fields['day45_change_reason'].disabled)
         self.assertFalse(form.fields['day45_units_store_day'].disabled)
         invalid=self.client.post(url,{**changed,'allocation':'2.5'})
         self.assertEqual(invalid.status_code,200)
-        self.assertFalse(invalid.context['gate2form'].fields['day45_change_reason'].frontend_hidden)
+        self.assertFalse(invalid.context['gate2form'].fields['day45_change_reason'].disabled)
         self.assertEqual(self.client.post(url,{**changed,'day45_target_confirmed':'same','day45_units_store_day':'999'}).status_code,302)
         saved=initial_brief(self.food)
-        self.assertEqual(saved['day45_target_confirmed'],'same')
-        self.assertEqual([Decimal(saved[key]) for key in ['day45_units_store_day','day45_writeoff_percent','day45_margin_percent']],[15,3,30])
-        self.assertEqual(saved['day45_change_reason'],'')
-        self.assertTrue(self.client.get(url).context['gate2form'].fields['day45_change_reason'].frontend_hidden)
+        self.assertEqual([Decimal(saved[key]) for key in ['day45_units_store_day','day45_writeoff_percent','day45_margin_percent']],[999,4,28])
+        self.assertEqual(saved['day45_change_reason'],'Updated sales plan')
+        self.assertFalse(self.client.get(url).context['gate2form'].fields['day45_change_reason'].disabled)
 
     def test_gate2_quality_ranges_and_marketing_dates_consistent_when_entered(self):
         from .gate2 import Gate2Form
@@ -1355,7 +1336,7 @@ class DevelopmentTests(TestCase):
                 self.assertNotContains(page,'name="%s"' % key)
             html=page.content.decode()
             self.assertLess(html.index('id="id_quality_weight_max"'),html.index('id="file-G2-F13"'))
-            self.assertLess(html.index('id="file-G2-F13"'),html.index('id="id_day45_target_confirmed"'))
+            self.assertLess(html.index('id="file-G2-F13"'),html.index('id="id_day45_units_store_day"'))
             for name,body in [('standard.pdf',b'first'),('standard-v2.pdf',b'revised')]:
                 self.assertEqual(self.client.post(url,{**payload,'slot_file':SimpleUploadedFile(name,body)}).status_code,302)
             activity=self.food.activities.get(attachment_name='standard-v2.pdf')
@@ -1432,7 +1413,7 @@ class DevelopmentTests(TestCase):
         self.assertEqual(self.client.post(url,payload).status_code,403)
         self.user.groups.add(Group.objects.get(name='NPD / Product Developer'))
         response=self.client.get(url)
-        self.assertContains(response,'id_day45_target_confirmed')
+        self.assertContains(response,'id_day45_units_store_day')
         self.assertContains(response,'id_launch_date')
         self.assertEqual(self.client.post(url,payload).status_code,302)
         self.assertEqual(initial_brief(self.food)['launch_date'],'2027-05-15')
@@ -1444,7 +1425,7 @@ class DevelopmentTests(TestCase):
         self.assertTrue(self.client.get(url).context['gate2form'].fields['lab_results_approved_shelf_life'].disabled)
         self.food.stage='gate1'; self.food.review_status='draft'; self.food.save()
         self.assertEqual(self.client.post(url,payload).status_code,403)
-        self.assertNotContains(self.client.get(url),'id_day45_target_confirmed')
+        self.assertNotContains(self.client.get(url),'id_day45_units_store_day')
 
     def test_gate1_file_slots_upload_history_and_access(self):
         from django.urls import reverse
@@ -1631,12 +1612,6 @@ class DevelopmentTests(TestCase):
         self.act_as('Merchandising Director','approve')
         self.assertEqual(self.food.stage,'launch')
         self.assertIsNotNone(self.food.launched_at)
-        self.act_as('FF Planning','submit')
-        self.assertEqual(self.food.stage,'launch')
-        from django.utils import timezone
-        from datetime import timedelta
-        self.food.launched_at=timezone.now()-timedelta(days=45)
-        self.food.save(update_fields=['launched_at'])
         self.act_as('FF Planning','submit')
         self.assertEqual(self.food.stage,'gate3')
         self.act_as('Category Manager (MD)','submit')

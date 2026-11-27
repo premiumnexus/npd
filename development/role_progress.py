@@ -3,21 +3,18 @@ from .workflow import CATEGORY,NPD,QA,MANAGER,DIRECTOR,SUBMITTERS,SCIENCE,PLANNI
 
 def role_progress(food):
     from .models import GateAccess
-    from .launch import schedule
     from .gate1 import initial_brief
     from .gate1_typed import cost_comparison
     if food.stage=='launch':
-        dates=schedule(food)
-        current=1 if dates['day14_open'] else 0
+        recorded_days=set(food.launch_checkpoints.values_list('day',flat=True))
         rows=[]
-        for index,(day,roles,task) in enumerate([
+        for day,roles,task in [
             (7,[SCIENCE,PLANNING],'Дээж ба борлуулалтын файл'),
             (14,[SCIENCE,PLANNING,QA],'Хадгалах хугацааны дээж, борлуулалт, гомдол'),
-            (45,[CATEGORY],'Gate 3 автоматаар нээгдэнэ'),
-        ]):
+            (45,[PLANNING],'Gate 3 руу шилжүүлэх'),
+        ]:
             rows.append({'key':'day%s'%day,'roles':roles,'task':task,'conditional':False,
-                'state':'done' if index<current else ('current' if index==current else 'upcoming'),
-                'due':dates['day%s_at'%day], 'locked':not dates['day%s_open'%day] if day!=45 else not dates['gate3_open']})
+                'state':'done' if day in recorded_days else 'current'})
         return rows
     def groups(permission,fallback):
         return list(GateAccess.objects.filter(stage=food.stage,**{permission:True}).order_by('group__name').values_list('group__name',flat=True)) or fallback
