@@ -1,8 +1,14 @@
 <section class="panel padded">
   <h2>Gate 3 · 45 дахь өдрийн дүгнэлт</h2>
+  <small>Launch GO дуусмагц бөглөх боломжтой. 45 хоног хүлээх шаардлагагүй.</small>
   <form method="post">
     {% csrf_token %}
-    {% include 'gate0_fields.html' with form=gate3form %}
+    <fieldset class="gate0-identity gate3-timing">
+      <legend>Хугацаа</legend>
+      <small><em>Төлөвлөсөн хугацаандаа гарсан уу?</em></small>
+      {% include 'gate0_fields.html' with form=gate3form fields=gate3form.timing_fields %}
+    </fieldset>
+    {% include 'gate0_fields.html' with form=gate3form fields=gate3form.remaining_fields hide_form_messages=True %}
     {% if editable %}<button class="button" name="action" value="gate3_save">Хадгалах</button>{% endif %}
   </form>
   {% include 'gate0_file_slots.html' with gate0slots=gate3slots %}

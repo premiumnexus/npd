@@ -163,6 +163,8 @@ Launch GO's Шийдвэр section follows the Day 14 checklist, with the subtit
 
 FF Planning can move Launch GO to Gate 3 through the usual submission button after completing required fields, without waiting for elapsed days. Gate 3 has no 45-day time lock: editing, files and review actions follow the existing role permissions and review state. Visiting the dashboard or detail page never advances the stage automatically. The retired `open_due_gate3` command is a harmless no-op for compatibility with existing scheduled calls.
 
+Gate 3 opens with the Хугацаа section and subtitle Төлөвлөсөн хугацаандаа гарсан уу? Fields 1.1–1.4 show the planned date from Gate 0 1.6, actual launch date from Gate 2 5.1, calculated late days (zero for early/on-time launches) and the delay reason from Gate 2 5.4. These source and calculated fields are read-only; posted overrides are ignored.
+
 Gate 3 compares actual sales, write-offs and margin with Gate 0 targets, reads Day 7/14 sample results, and captures complaints, feedback, root causes and lessons. Handover checks recognize Gate 2 values and relevant Gate 2 file records. The Recipes and Lessons pages expose the corresponding saved information.
 
 Structured gate transitions retain action, actor, timestamp and linked audit events. Ordinary saves and uploads do not reset gate timing. Historical timestamps remain unknown when there is no recorded source.

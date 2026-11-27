@@ -199,7 +199,7 @@ def detail(request,pk):
                     save_gate3(food,gate3form.cleaned_data)
                     Activity.objects.create(food=food,actor=request.user,text='Gate 3 мэдээллийг шинэчлэв')
                     if gate3form.delay_reason_recommended:
-                        messages.warning(request,'Нэвтрүүлэлт 7-оос олон хоногоор хоцорсон байна. Шалтгаан оруулахыг зөвлөж байна. Энэ нь хадгалахыг хориглохгүй.')
+                        messages.warning(request,'Нэвтрүүлэлт 7-оос олон хоногоор хоцорсон байна. Gate 2 5.4-ийн хоцорсон шалтгаан бүртгэгдээгүй байна. Энэ нь хадгалахыг хориглохгүй.')
                 else: return render_page()
             elif action == 'gate2_save':
                 if food.stage != 'gate2': return HttpResponseForbidden('Зөвхөн Gate 2-д засварлана.')

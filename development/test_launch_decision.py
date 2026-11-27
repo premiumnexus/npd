@@ -1,8 +1,10 @@
 import tempfile
 from datetime import date
+from datetime import timedelta
 
 from django.contrib.auth.models import Group,User
 from django.test import TestCase
+from django.utils import timezone
 
 from .models import Food,LaunchCheckpoint,LaunchDecision,LaunchAction
 from .test_gate0_pricing import FormNestingParser
@@ -86,3 +88,22 @@ class LaunchDecisionTests(TestCase):
         self.assertNotIn('data-add-row',section)
         self.assertNotIn('value="launch_decision_save"',section)
         self.assertIn('disabled',section)
+
+    def test_gate3_fields_editable_as_soon_as_launch_finishes(self):
+        from .gate3 import initial_brief
+        self.user.is_superuser=False;self.user.save()
+        self.user.groups.add(Group.objects.get(name='FF Planning'))
+        for launch_date in (None,timezone.now(),timezone.now()+timedelta(days=45)):
+            with self.subTest(launch_date=launch_date):
+                food=Food.objects.create(name='Immediate Gate 3',stage='launch',owner=self.user,launched_at=launch_date)
+                for day in (7,14):
+                    LaunchCheckpoint.objects.create(development=food,day=day,checked_date='2026-11-27',sample_weight_g=150,sample_result='within',complaints_count=0)
+                LaunchDecision.objects.create(development=food,decision='continue')
+                url='/food/%s/'%food.pk
+                self.assertEqual(self.client.post(url,{'action':'submit'}).status_code,302)
+                food.refresh_from_db();self.assertEqual((food.stage,food.review_status),('gate3','draft'))
+                page=self.client.get(url)
+                self.assertTrue(page.context['editable'])
+                self.assertFalse(page.context['gate3form'].fields['sales_vs_target'].disabled)
+                self.assertEqual(self.client.post(url,{'action':'gate3_save','sales_vs_target':'10'}).status_code,302)
+                self.assertEqual(initial_brief(food)['sales_vs_target'],'10')

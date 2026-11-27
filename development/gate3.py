@@ -3,7 +3,10 @@ from django import forms
 from django.db import transaction
 
 FIELDS = [
-    ('3.1','planned_vs_actual_launch_date','Нэвтрүүлсэн огноо: төлөвлөгөө vs бодит'),
+    ('1.1','planned_vs_actual_launch_date','Төлөвлөсөн огноо (Gate 0 1.6-аас)'),
+    ('1.2','actual_launch_date','Нэвтрүүлсэн огноо (Gate 2 5.1-ээс)'),
+    ('1.3','launch_days_late','Хоцорсон хоног'),
+    ('1.4','launch_delay_reason','Хоцорсон шалтгаан (Gate 2 5.4-өөс)'),
     ('3.2','sales_vs_target','Борлуулалт vs зорилт'),
     ('3.3','margin_after_writeoff','акт-ын дараах ашиг'),
     ('3.4','writeoff_percent_of_cost','акт, өртгийн %'),

@@ -26,6 +26,7 @@ def derived_values(food,data):
         'planned_vs_actual_launch_date':str(planned) if planned else '',
         'actual_launch_date':str(actual) if actual else '',
         'launch_days_late':late,
+        'launch_delay_reason':launch.get('launch_date_change_reason') or '',
     }
     for actual_key,target_key,output in [
         ('sales_vs_target','target_units_store_day','sales'),
@@ -55,6 +56,14 @@ def derived_values(food,data):
     return result
 
 class Gate3Form(forms.Form):
+    timing_keys=('planned_vs_actual_launch_date','actual_launch_date','launch_days_late','launch_delay_reason')
+
+    @property
+    def timing_fields(self): return [self[key] for key in self.timing_keys]
+
+    @property
+    def remaining_fields(self): return [field for field in self if field.name not in self.timing_keys]
+
     def __init__(self,*args,food=None,**kwargs):
         super().__init__(*args,**kwargs)
         self.food=food
@@ -69,11 +78,10 @@ class Gate3Form(forms.Form):
         def enum(items,disabled=False): return forms.ChoiceField(choices=[('','---------')]+items,disabled=disabled)
         def readonly(): return forms.CharField(disabled=True)
         yesno=[('yes','Тийм'),('no','Үгүй')]
-        add('planned_vs_actual_launch_date','Gate 0 (0.22) төлөвлөсөн огноо','3.1',readonly())
-        add('actual_launch_date','Gate 2 (2.12) нэвтрүүлсэн огноо','3.1',readonly())
-        add('launch_days_late','Хоцорсон хоног','3.1',readonly())
-        add('launch_delay_reason','Нэвтрүүлэлт хоцорсон шалтгаан','3.1',text())
-        self.fields['launch_delay_reason'].help_text+=' 7-оос олон хоног хоцорсон бол тайлбар оруулахыг зөвлөж байна. Талбар заавал биш.'
+        add('planned_vs_actual_launch_date','Төлөвлөсөн огноо (Gate 0 1.6-аас)','1.1',readonly())
+        add('actual_launch_date','Нэвтрүүлсэн огноо (Gate 2 5.1-ээс)','1.2',readonly())
+        add('launch_days_late','Хоцорсон хоног','1.3',readonly())
+        add('launch_delay_reason','Хоцорсон шалтгаан (Gate 2 5.4-өөс)','1.4',forms.CharField(disabled=True,widget=forms.Textarea(attrs={'rows':2})))
         add('sales_vs_target','45 хоногийн борлуулалт (ширхэг / дэлгүүр / өдөр)','3.2',number())
         add('sales_target','Gate 0 (0.14) борлуулалтын зорилт','3.2',readonly())
         add('sales_difference','Борлуулалтын зөрүү (бодит − зорилт)','3.2',readonly())
